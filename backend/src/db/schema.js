@@ -1,8 +1,25 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  displayName: text('display_name').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const refreshTokens = sqliteTable('refresh_tokens', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
 export const houses = sqliteTable('houses', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  inviteCode: text('invite_code'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
@@ -17,7 +34,7 @@ export const householdMembers = sqliteTable('household_members', {
   id: text('id').primaryKey(),
   houseId: text('house_id').notNull().references(() => houses.id, { onDelete: 'cascade' }),
   displayName: text('display_name').notNull(),
-  userId: text('user_id'), // nullable until Phase 2 auth
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
 });
 
 export const choreAssignments = sqliteTable('chore_assignments', {

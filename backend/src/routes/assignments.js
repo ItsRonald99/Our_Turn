@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import * as assignmentService from '../services/assignmentService.js';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireHouseMember } from '../middleware/requireHouseMember.js';
 
 const router = Router({ mergeParams: true });
+
+router.use(requireAuth, requireHouseMember);
 
 /** GET /houses/:houseId/assignments */
 router.get('/', async (req, res) => {

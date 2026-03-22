@@ -51,7 +51,5 @@ Household chore tracker for housemates: track who is responsible for garbage, re
 
 ## Roadmap
 
-- **Phase 2:** User authentication; link users to household members.
+- **Phase 2:** User authentication; link users to household members. ✅ Complete — see [docs/phase-2-auth.md](docs/phase-2-auth.md) for the implementation plan.
 - **Phase 3:** Multiple house groups; switch house in the UI.
-
-See the plan in `.cursor/plans/` for the full scalable design.

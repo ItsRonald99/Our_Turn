@@ -8,6 +8,14 @@ vi.mock('../../db/client.js', () => ({
   saveDb: vi.fn(),
 }));
 
+// Bypass auth middleware in route unit tests
+vi.mock('../../middleware/requireAuth.js', () => ({
+  requireAuth: (_req, _res, next) => next(),
+}));
+vi.mock('../../middleware/requireHouseMember.js', () => ({
+  requireHouseMember: (_req, _res, next) => next(),
+}));
+
 import { getDbSync, saveDb } from '../../db/client.js';
 import membersRouter from '../members.js';
 
