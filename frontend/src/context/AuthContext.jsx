@@ -38,23 +38,37 @@ export function AuthProvider({ children }) {
   }, []);
 
   // On mount: attempt silent token refresh to restore session
+
   useEffect(() => {
     setRefreshCallback((newToken) => {
       if (!newToken) clearAuth();
       else setAccessToken(newToken);
     });
 
+
+
+
+
     api.refreshToken()
       .then(async (res) => {
+
+
+
         if (isMounted.current) {
           await applyAuth(res.data.user, res.data.accessToken);
         }
       })
-      .catch(() => {
-        // No valid session, stay logged out
+      .catch((err) => {
+     
+
+
+
       })
       .finally(() => {
-        if (isMounted.current) setIsLoading(false);
+
+
+
+        setIsLoading(false);
       });
   }, [applyAuth, clearAuth]);
 

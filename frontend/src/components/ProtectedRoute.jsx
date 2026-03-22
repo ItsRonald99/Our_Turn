@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 export function ProtectedRoute({ children }) {
   const { user, isLoading } = useAuth();
 
+
+
   if (isLoading) {
     return (
       <div className="auth-loading">
