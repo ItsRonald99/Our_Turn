@@ -3,8 +3,12 @@ import { eq } from 'drizzle-orm';
 import { getDbSync, saveDb } from '../db/client.js';
 import { choreTypes } from '../db/schema.js';
 import { randomUUID } from 'crypto';
+import { requireAuth } from '../middleware/requireAuth.js';
+import { requireHouseMember } from '../middleware/requireHouseMember.js';
 
 const router = Router({ mergeParams: true });
+
+router.use(requireAuth, requireHouseMember);
 
 /** GET /houses/:houseId/chore-types */
 router.get('/', async (req, res) => {

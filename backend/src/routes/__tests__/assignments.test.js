@@ -10,6 +10,14 @@ vi.mock('../../services/assignmentService.js', () => ({
   markComplete: vi.fn(),
 }));
 
+// Bypass auth middleware in route unit tests
+vi.mock('../../middleware/requireAuth.js', () => ({
+  requireAuth: (_req, _res, next) => next(),
+}));
+vi.mock('../../middleware/requireHouseMember.js', () => ({
+  requireHouseMember: (_req, _res, next) => next(),
+}));
+
 import * as assignmentService from '../../services/assignmentService.js';
 import assignmentsRouter from '../assignments.js';
 
