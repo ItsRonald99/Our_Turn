@@ -29,7 +29,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const houseId = req.params.houseId;
-    const { choreTypeId, memberId, dueDate, useRotation } = req.body ?? {};
+    const { choreTypeId, memberId, dueDate, useRotation, recurrenceType, recurrenceValue } = req.body ?? {};
     if (!choreTypeId) {
       return res.status(400).json({ error: 'choreTypeId is required' });
     }
@@ -38,6 +38,8 @@ router.post('/', async (req, res) => {
       memberId: memberId || undefined,
       dueDate: dueDate || undefined,
       useRotation: Boolean(useRotation),
+      recurrenceType: recurrenceType || undefined,
+      recurrenceValue: recurrenceValue !== undefined ? Number(recurrenceValue) : undefined,
     });
     res.status(201).json({ data });
   } catch (err) {

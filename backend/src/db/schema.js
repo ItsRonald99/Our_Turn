@@ -45,4 +45,6 @@ export const choreAssignments = sqliteTable('chore_assignments', {
   dueDate: integer('due_date', { mode: 'timestamp' }).notNull(),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(0),
+  recurrenceType: text('recurrence_type'),   // null | 'interval' | 'weekday'
+  recurrenceValue: integer('recurrence_value'), // 'interval': N days; 'weekday': 0-6 (JS getDay())
 });

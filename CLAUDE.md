@@ -55,7 +55,7 @@ This is a monorepo with a Node/Express backend and a Vite/React frontend.
 - **Auth context:** `src/context/AuthContext.jsx` — holds `user`, `accessToken`, `activeHouseId`, `isLoading`. On mount, attempts silent token refresh via httpOnly cookie; sets `isLoading=false` once complete. Uses `isMounted` ref to guard against state updates after unmount.
 - **API client:** `src/api/client.js` — thin fetch wrapper prefixing all requests with `/api`. Automatically injects `Authorization` header, handles 401 by refreshing the access token (with request deduplication via `_refreshPromise`), then retries. Skips refresh for `/auth/*` endpoints.
 - **Hooks:** `src/hooks/` — React Query hooks (`useChores`, `useMembers`, `useHouse`, `useAuth`) that call the API client. `useHouseId()` returns `activeHouseId` from auth context.
-- **Pages:** `src/pages/` — `Login`, `Register`, `Home` (main dashboard), `HouseSetup` (create or join a house via 6-char invite code).
+- **Pages:** `src/pages/` — `Login`, `Register`, `HouseSelector` (post-login landing; pick an existing house or open HouseSetup), `HouseSetup` (create or join a house via 6-char invite code), `Home` (main dashboard).
 - **Components:** `src/components/` — `ProtectedRoute` (redirects to `/login` when unauthenticated), `ChoreList`, `ChoreCard`, `MemberList`, `AddAssignmentForm`.
 
 ### Auth flow
@@ -66,8 +66,9 @@ This is a monorepo with a Node/Express backend and a Vite/React frontend.
 
 ### Key design decisions
 - **Multi-tenant by design:** Every API route and DB query scopes data by `house_id`. Don't add global state that bypasses house scoping.
-- **sql.js write pattern:** After any insert/update/delete, call `saveDb()` to persist changes to disk. Forgetting this will silently discard writes on process exit.
+- **sql.js write pattern:** After any insert/update/delete, call `saveDb()` to persist changes to disk. Forgetting this will silently discard writes on process exit. `PRAGMA foreign_keys = ON` is set on every DB init (`client.js`), so `onDelete: 'cascade'` in the schema actually fires — deleting a house cascades to chore_types, household_members, and chore_assignments automatically.
 - **Drizzle migrations:** Schema changes require running `npm run db:generate` (inside `backend/`) to produce a new `.sql` file in `backend/drizzle/`, then `npm run db:migrate` to apply it. Never edit generated `.sql` files directly.
 - **Vite proxy:** In development, `frontend/vite.config.js` proxies `/api/*` → `http://localhost:3001/*`, so the API client never needs an absolute URL.
 - **House membership:** Users join houses via a unique 6-char invite code. Creating a house auto-adds the creator as a member.
 - **Nullable `user_id` on members:** Allows legacy/guest household members from Phase 1 to coexist with authenticated users.
+- **Recurring assignments:** `chore_assignments` has two nullable columns — `recurrence_type` (`'interval'|'weekday'`) and `recurrence_value` (N days or 0–6 weekday index). When `markComplete` is called on a recurring assignment, `assignmentService.nextRecurringDueDate()` computes the next due date and a new assignment is spawned automatically. All date arithmetic in that function uses `getUTCDate`/`setUTCDate`/`getUTCDay` to avoid local-timezone off-by-one errors with ISO date strings.

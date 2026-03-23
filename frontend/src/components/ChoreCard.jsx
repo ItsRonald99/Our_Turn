@@ -1,6 +1,22 @@
 import { useState } from 'react';
 import { useCompleteAssignment, useUpdateAssignment, useDeleteAssignment } from '../hooks/useChores';
 
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function recurrenceLabel(type, value) {
+  if (!type) return null;
+  if (type === 'interval') {
+    if (value === 1) return 'Daily';
+    if (value === 7) return 'Weekly';
+    if (value === 14) return 'Biweekly';
+    return `Every ${value} days`;
+  }
+  if (type === 'weekday') {
+    return `Every ${WEEKDAY_NAMES[value] ?? '?'}`;
+  }
+  return null;
+}
+
 function toDateInputValue(timestamp) {
   if (!timestamp) return '';
   return new Date(timestamp).toISOString().slice(0, 10);
@@ -59,6 +75,12 @@ export function ChoreCard({ houseId, assignment, choreTypeName, memberName, memb
           <span className="chore-card__due">Due: {due}</span>
         )}
       </div>
+
+      {recurrenceLabel(assignment.recurrenceType, assignment.recurrenceValue) && (
+        <span className="chore-card__recurrence">
+          ↻ {recurrenceLabel(assignment.recurrenceType, assignment.recurrenceValue)}
+        </span>
+      )}
 
       {isEditing ? (
         <div className="chore-card__edit">

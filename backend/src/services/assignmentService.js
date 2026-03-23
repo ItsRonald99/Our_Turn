@@ -36,9 +36,31 @@ export async function getNextAssignee(houseId, choreTypeId) {
 }
 
 /**
+ * Calculate the next due date for a recurring assignment.
+ * - 'interval': advance by recurrenceValue days
+ * - 'weekday': find the next occurrence of recurrenceValue (0=Sun…6=Sat) after fromDate
+ */
+export function nextRecurringDueDate(fromDate, recurrenceType, recurrenceValue) {
+  const d = new Date(fromDate);
+  if (recurrenceType === 'interval') {
+    d.setUTCDate(d.getUTCDate() + recurrenceValue);
+    return d;
+  }
+  if (recurrenceType === 'weekday') {
+    // Advance at least 1 day so we never land on the same date
+    d.setUTCDate(d.getUTCDate() + 1);
+    while (d.getUTCDay() !== recurrenceValue) {
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return d;
+  }
+  return null;
+}
+
+/**
  * Create a new assignment, optionally using rotation to pick the member.
  */
-export async function createAssignment(houseId, { choreTypeId, memberId, dueDate, useRotation }) {
+export async function createAssignment(houseId, { choreTypeId, memberId, dueDate, useRotation, recurrenceType, recurrenceValue }) {
   let assigneeId = memberId;
   if (useRotation && !assigneeId) {
     const next = await getNextAssignee(houseId, choreTypeId);
@@ -59,6 +81,8 @@ export async function createAssignment(houseId, { choreTypeId, memberId, dueDate
     dueDate: due,
     completedAt: null,
     createdAt: new Date(),
+    recurrenceType: recurrenceType ?? null,
+    recurrenceValue: recurrenceValue ?? null,
   });
   saveDb();
   return getAssignmentById(houseId, id);
@@ -124,7 +148,25 @@ export async function updateAssignment(houseId, assignmentId, { memberId, comple
 }
 
 export async function markComplete(houseId, assignmentId) {
-  return updateAssignment(houseId, assignmentId, { completedAt: new Date() });
+  const completed = await updateAssignment(houseId, assignmentId, { completedAt: new Date() });
+  if (!completed) return null;
+
+  // Spawn the next occurrence if this is a recurring assignment
+  if (completed.recurrenceType && completed.recurrenceValue !== null && completed.recurrenceValue !== undefined) {
+    const nextDue = nextRecurringDueDate(completed.dueDate, completed.recurrenceType, completed.recurrenceValue);
+    if (nextDue) {
+      await createAssignment(houseId, {
+        choreTypeId: completed.choreTypeId,
+        memberId: completed.memberId,
+        dueDate: nextDue,
+        useRotation: false,
+        recurrenceType: completed.recurrenceType,
+        recurrenceValue: completed.recurrenceValue,
+      });
+    }
+  }
+
+  return completed;
 }
 
 export async function deleteAssignment(houseId, assignmentId) {

@@ -261,3 +261,147 @@ describe('AddAssignmentForm', () => {
     expect(screen.getByText('Already exists')).toBeInTheDocument();
   });
 });
+
+describe('AddAssignmentForm — recurrence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    defaultMutate.mockReset();
+  });
+
+  it('renders the Repeat selector defaulting to "Does not repeat"', () => {
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+    expect(screen.getByRole('option', { name: /Does not repeat/i }).selected).toBe(true);
+  });
+
+  it('does not include recurrenceType in the payload when "Does not repeat" is selected', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Chore/i }), 'ct-1');
+    await user.click(screen.getByRole('button', { name: /Add assignment/i }));
+
+    expect(defaultMutate).toHaveBeenCalledWith(
+      expect.not.objectContaining({ recurrenceType: expect.anything() }),
+      expect.any(Object)
+    );
+  });
+
+  it('shows the interval sub-select when "Every N days" is chosen', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'interval');
+    expect(screen.getByRole('combobox', { name: /Interval in days/i })).toBeInTheDocument();
+  });
+
+  it('shows the weekday sub-select when "Every weekday" is chosen', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'weekday');
+    expect(screen.getByRole('combobox', { name: /Day of week/i })).toBeInTheDocument();
+  });
+
+  it('hides the interval sub-select after switching back to "Does not repeat"', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'interval');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), '');
+    expect(screen.queryByRole('combobox', { name: /Interval in days/i })).not.toBeInTheDocument();
+  });
+
+  it('interval defaults to 7 (weekly) when "Every N days" is first selected', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'interval');
+    const intervalSelect = screen.getByRole('combobox', { name: /Interval in days/i });
+    expect(intervalSelect.value).toBe('7');
+  });
+
+  it('weekday defaults to 1 (Monday) when "Every weekday" is first selected', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'weekday');
+    const weekdaySelect = screen.getByRole('combobox', { name: /Day of week/i });
+    expect(weekdaySelect.value).toBe('1');
+  });
+
+  it('submits with recurrenceType=interval and the chosen value', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Chore/i }), 'ct-1');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'interval');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Interval in days/i }), '14');
+    await user.click(screen.getByRole('button', { name: /Add assignment/i }));
+
+    expect(defaultMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceType: 'interval', recurrenceValue: 14 }),
+      expect.any(Object)
+    );
+  });
+
+  it('submits with recurrenceType=weekday and the chosen day', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Chore/i }), 'ct-1');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'weekday');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Day of week/i }), '3'); // Wednesday
+    await user.click(screen.getByRole('button', { name: /Add assignment/i }));
+
+    expect(defaultMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ recurrenceType: 'weekday', recurrenceValue: 3 }),
+      expect.any(Object)
+    );
+  });
+
+  it('resets recurrenceType to "Does not repeat" after successful submission', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    defaultMutate.mockImplementation((_vars, { onSuccess }) => onSuccess?.());
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Chore/i }), 'ct-1');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'interval');
+    await user.click(screen.getByRole('button', { name: /Add assignment/i }));
+
+    expect(screen.queryByRole('combobox', { name: /Interval in days/i })).not.toBeInTheDocument();
+  });
+
+  it('switching from weekday to interval resets the value to 7', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'weekday');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Day of week/i }), '5'); // Friday
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'interval');
+
+    expect(screen.getByRole('combobox', { name: /Interval in days/i }).value).toBe('7');
+  });
+
+  it('switching from interval to weekday resets the value to 1', async () => {
+    const user = userEvent.setup();
+    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
+    render(<AddAssignmentForm houseId="house-1" />);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'interval');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Interval in days/i }), '14');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Repeat/i }), 'weekday');
+
+    expect(screen.getByRole('combobox', { name: /Day of week/i }).value).toBe('1');
+  });
+});
