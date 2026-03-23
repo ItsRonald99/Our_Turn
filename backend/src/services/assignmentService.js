@@ -94,13 +94,18 @@ export async function listAssignments(houseId, { choreTypeId, fromDate, toDate, 
   return rows;
 }
 
-export async function updateAssignment(houseId, assignmentId, { memberId, completedAt }) {
+export async function updateAssignment(houseId, assignmentId, { memberId, completedAt, dueDate }) {
   const existing = await getAssignmentById(houseId, assignmentId);
   if (!existing) return null;
 
   const updates = {};
   if (memberId !== undefined) updates.memberId = memberId;
   if (completedAt !== undefined) updates.completedAt = completedAt ? new Date(completedAt) : null;
+  if (dueDate !== undefined) {
+    const parsed = new Date(dueDate);
+    if (isNaN(parsed.getTime())) throw new Error('Invalid dueDate');
+    updates.dueDate = parsed;
+  }
 
   if (Object.keys(updates).length === 0) return existing;
 
@@ -119,4 +124,19 @@ export async function updateAssignment(houseId, assignmentId, { memberId, comple
 
 export async function markComplete(houseId, assignmentId) {
   return updateAssignment(houseId, assignmentId, { completedAt: new Date() });
+}
+
+export async function deleteAssignment(houseId, assignmentId) {
+  const existing = await getAssignmentById(houseId, assignmentId);
+  if (!existing) return null;
+
+  const db = getDbSync();
+  await db.delete(choreAssignments).where(
+    and(
+      eq(choreAssignments.houseId, houseId),
+      eq(choreAssignments.id, assignmentId)
+    )
+  );
+  saveDb();
+  return true;
 }

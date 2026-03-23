@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
+  const [houses, setHouses] = useState([]);
   const [activeHouseId, setActiveHouseId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const isMounted = useRef(true);
@@ -21,18 +22,23 @@ export function AuthProvider({ children }) {
 
     try {
       const res = await api.getHouses();
-      const houses = res.data ?? [];
+      const fetched = res.data ?? [];
       if (isMounted.current) {
-        setActiveHouseId(houses.length > 0 ? houses[0].id : null);
+        setHouses(fetched);
+        setActiveHouseId(fetched.length > 0 ? fetched[0].id : null);
       }
     } catch {
-      if (isMounted.current) setActiveHouseId(null);
+      if (isMounted.current) {
+        setHouses([]);
+        setActiveHouseId(null);
+      }
     }
   }, []);
 
   const clearAuth = useCallback(() => {
     setUser(null);
     setAccessToken(null);
+    setHouses([]);
     setActiveHouseId(null);
     setToken(null);
   }, []);
@@ -92,13 +98,21 @@ export function AuthProvider({ children }) {
   const refreshHouses = useCallback(async () => {
     try {
       const res = await api.getHouses();
-      const houses = res.data ?? [];
-      setActiveHouseId(houses.length > 0 ? houses[0].id : null);
-    } catch { /* ignore */ }
+      const fetched = res.data ?? [];
+      setHouses(fetched);
+      if (fetched.length > 0) {
+        setActiveHouseId((prev) => prev ?? fetched[0].id);
+      } else {
+        setActiveHouseId(null);
+      }
+      return fetched;
+    } catch {
+      return [];
+    }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, activeHouseId, isLoading, login, register, logout, refreshHouses }}>
+    <AuthContext.Provider value={{ user, accessToken, houses, activeHouseId, setActiveHouseId, isLoading, login, register, logout, refreshHouses }}>
       {children}
     </AuthContext.Provider>
   );

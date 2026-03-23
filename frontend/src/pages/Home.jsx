@@ -5,25 +5,35 @@ import { useMembers } from '../hooks/useMembers';
 import { ChoreList } from '../components/ChoreList';
 import { MemberList } from '../components/MemberList';
 import { AddAssignmentForm } from '../components/AddAssignmentForm';
-import { HouseSetup } from './HouseSetup';
+import { Navigate, useNavigate } from 'react-router-dom';
 
 export function Home() {
   const houseId = useHouseId();
-  const { user, logout } = useAuth();
+  const { user, houses, logout } = useAuth();
+  const navigate = useNavigate();
   const { data: choreTypes = [], isLoading: typesLoading } = useChoreTypes(houseId);
   const { data: assignments = [], isLoading: assignmentsLoading } = useAssignments(houseId);
   const { data: members = [] } = useMembers(houseId);
 
   if (!houseId) {
-    return <HouseSetup />;
+    return <Navigate to="/houses" replace />;
   }
+
+  const activeHouse = houses.find((h) => h.id === houseId);
 
   return (
     <main className="page-home">
       <header className="page-home__header">
         <div>
           <h1>Our Turn</h1>
-          <p>Chore tracker for the house</p>
+          <button
+            type="button"
+            className="page-home__house-switch"
+            onClick={() => navigate('/houses')}
+            title="Switch house"
+          >
+            {activeHouse?.name ?? 'My House'}
+          </button>
         </div>
         <div className="page-home__user">
           <span>{user?.displayName || user?.email}</span>

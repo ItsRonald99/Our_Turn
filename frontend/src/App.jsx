@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { HouseSelector } from './pages/HouseSelector';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -21,6 +22,14 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route
+              path="/houses"
+              element={
+                <ProtectedRoute>
+                  <HouseSelector />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/"
               element={

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as assignmentService from '../services/assignmentService.js';
+
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireHouseMember } from '../middleware/requireHouseMember.js';
 
@@ -51,13 +52,27 @@ router.post('/', async (req, res) => {
 router.patch('/:assignmentId', async (req, res) => {
   try {
     const { houseId, assignmentId } = req.params;
-    const { memberId, completedAt } = req.body ?? {};
+    const { memberId, completedAt, dueDate } = req.body ?? {};
     const data = await assignmentService.updateAssignment(houseId, assignmentId, {
       memberId: memberId || undefined,
       completedAt: completedAt !== undefined ? (completedAt ? new Date(completedAt) : null) : undefined,
+      dueDate: dueDate || undefined,
     });
     if (!data) return res.status(404).json({ error: 'Assignment not found' });
     res.json({ data });
+  } catch (err) {
+    if (err.message === 'Invalid dueDate') return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** DELETE /houses/:houseId/assignments/:assignmentId */
+router.delete('/:assignmentId', async (req, res) => {
+  try {
+    const { houseId, assignmentId } = req.params;
+    const result = await assignmentService.deleteAssignment(houseId, assignmentId);
+    if (!result) return res.status(404).json({ error: 'Assignment not found' });
+    res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

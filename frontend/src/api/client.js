@@ -94,4 +94,6 @@ export const api = {
     request(`/houses/${houseId}/assignments/${assignmentId}`, { method: 'PATCH', body: JSON.stringify(body) }),
   completeAssignment: (houseId, assignmentId) =>
     request(`/houses/${houseId}/assignments/${assignmentId}/complete`, { method: 'POST' }),
+  deleteAssignment: (houseId, assignmentId) =>
+    request(`/houses/${houseId}/assignments/${assignmentId}`, { method: 'DELETE' }),
 };
