@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useHouseId } from '../hooks/useHouse';
 import { useAuth } from '../context/AuthContext';
 import { useChoreTypes, useAssignments } from '../hooks/useChores';
@@ -11,8 +12,12 @@ export function Home() {
   const houseId = useHouseId();
   const { user, houses, logout } = useAuth();
   const navigate = useNavigate();
+  const [showCompleted, setShowCompleted] = useState(false);
   const { data: choreTypes = [], isLoading: typesLoading } = useChoreTypes(houseId);
-  const { data: assignments = [], isLoading: assignmentsLoading } = useAssignments(houseId);
+  const { data: assignments = [], isLoading: assignmentsLoading } = useAssignments(
+    houseId,
+    { includeCompleted: showCompleted }
+  );
   const { data: members = [] } = useMembers(houseId);
 
   if (!houseId) {
@@ -54,6 +59,8 @@ export function Home() {
                 assignments={assignments}
                 choreTypes={choreTypes}
                 members={members}
+                showCompleted={showCompleted}
+                onToggleCompleted={() => setShowCompleted((v) => !v)}
               />
               <AddAssignmentForm houseId={houseId} />
             </>

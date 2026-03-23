@@ -1,6 +1,6 @@
 import { getDbSync, saveDb } from '../db/client.js';
 import { choreAssignments, householdMembers } from '../db/schema.js';
-import { eq, and, desc, asc, gte, lte } from 'drizzle-orm';
+import { eq, and, desc, asc, gte, lte, isNull } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
 /**
@@ -24,7 +24,7 @@ export async function getNextAssignee(houseId, choreTypeId) {
         eq(choreAssignments.choreTypeId, choreTypeId)
       )
     )
-    .orderBy(desc(choreAssignments.dueDate))
+    .orderBy(desc(choreAssignments.createdAt))
     .limit(1);
 
   if (lastAssignment.length === 0) return members[0];
@@ -58,6 +58,7 @@ export async function createAssignment(houseId, { choreTypeId, memberId, dueDate
     memberId: assigneeId,
     dueDate: due,
     completedAt: null,
+    createdAt: new Date(),
   });
   saveDb();
   return getAssignmentById(houseId, id);
@@ -84,7 +85,7 @@ export async function listAssignments(houseId, { choreTypeId, fromDate, toDate, 
   if (choreTypeId) conditions.push(eq(choreAssignments.choreTypeId, choreTypeId));
   if (fromDate) conditions.push(gte(choreAssignments.dueDate, new Date(fromDate)));
   if (toDate) conditions.push(lte(choreAssignments.dueDate, new Date(toDate)));
-  if (includeCompleted === false) conditions.push(eq(choreAssignments.completedAt, null));
+  if (includeCompleted === false) conditions.push(isNull(choreAssignments.completedAt));
 
   const rows = await db
     .select()

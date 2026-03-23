@@ -44,4 +44,5 @@ export const choreAssignments = sqliteTable('chore_assignments', {
   memberId: text('member_id').notNull().references(() => householdMembers.id, { onDelete: 'cascade' }),
   dueDate: integer('due_date', { mode: 'timestamp' }).notNull(),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(0),
 });

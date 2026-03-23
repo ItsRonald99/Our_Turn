@@ -40,3 +40,39 @@ export function useCompleteAssignment(houseId) {
     }
   );
 }
+
+export function useUpdateAssignment(houseId) {
+  const qc = useQueryClient();
+  return useMutation(
+    ({ assignmentId, ...body }) => api.updateAssignment(houseId, assignmentId, body),
+    {
+      onSuccess: () => {
+        qc.invalidateQueries(['assignments', houseId]);
+      },
+    }
+  );
+}
+
+export function useDeleteAssignment(houseId) {
+  const qc = useQueryClient();
+  return useMutation(
+    (assignmentId) => api.deleteAssignment(houseId, assignmentId),
+    {
+      onSuccess: () => {
+        qc.invalidateQueries(['assignments', houseId]);
+      },
+    }
+  );
+}
+
+export function useCreateChoreType(houseId) {
+  const qc = useQueryClient();
+  return useMutation(
+    (body) => api.createChoreType(houseId, body),
+    {
+      onSuccess: () => {
+        qc.invalidateQueries(['choreTypes', houseId]);
+      },
+    }
+  );
+}

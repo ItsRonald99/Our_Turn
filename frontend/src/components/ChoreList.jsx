@@ -1,6 +1,6 @@
 import { ChoreCard } from './ChoreCard';
 
-export function ChoreList({ houseId, assignments = [], choreTypes = [], members = [] }) {
+export function ChoreList({ houseId, assignments = [], choreTypes = [], members = [], showCompleted, onToggleCompleted }) {
   const typeMap = Object.fromEntries(choreTypes.map((t) => [t.id, t.name]));
   const memberMap = Object.fromEntries(members.map((m) => [m.id, m.displayName]));
 
@@ -13,7 +13,17 @@ export function ChoreList({ houseId, assignments = [], choreTypes = [], members 
 
   return (
     <section className="chore-list">
-      <h3>Assignments</h3>
+      <div className="chore-list__header">
+        <h3>Assignments</h3>
+        <label className="chore-list__filter">
+          <input
+            type="checkbox"
+            checked={showCompleted}
+            onChange={onToggleCompleted}
+          />
+          Show completed
+        </label>
+      </div>
       {Object.keys(byChore).length === 0 ? (
         <p className="chore-list__empty">No assignments yet. Add housemates and create one below.</p>
       ) : (
@@ -26,6 +36,7 @@ export function ChoreList({ houseId, assignments = [], choreTypes = [], members 
                 assignment={a}
                 choreTypeName={typeName}
                 memberName={memberMap[a.memberId]}
+                members={members}
               />
             ))
           )}
