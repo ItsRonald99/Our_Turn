@@ -18,16 +18,19 @@ import { api, setToken, setRefreshCallback } from '../../api/client';
 import { AuthProvider, useAuth } from '../AuthContext';
 
 function TestConsumer() {
-  const { user, accessToken, activeHouseId, isLoading, login, register, logout } = useAuth();
+  const { user, accessToken, houses, activeHouseId, setActiveHouseId, isLoading, login, register, logout, refreshHouses } = useAuth();
   return (
     <div>
       <span data-testid="loading">{String(isLoading)}</span>
       <span data-testid="user">{user ? user.email : 'null'}</span>
       <span data-testid="token">{accessToken || 'null'}</span>
       <span data-testid="houseId">{activeHouseId || 'null'}</span>
+      <span data-testid="houses">{JSON.stringify(houses)}</span>
       <button onClick={() => login('a@b.com', 'pass')}>login</button>
       <button onClick={() => register('a@b.com', 'pass', 'Alice')}>register</button>
       <button onClick={logout}>logout</button>
+      <button onClick={() => setActiveHouseId('h-2')}>switch house</button>
+      <button onClick={refreshHouses}>refresh</button>
     </div>
   );
 }
@@ -113,7 +116,7 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('houseId').textContent).toBe('null');
   });
 
-  it('logout clears user, token, and houseId', async () => {
+  it('logout clears user, token, houseId, and houses', async () => {
     const mockUser = { id: 'u-1', email: 'a@b.com', displayName: 'Alice' };
     api.refreshToken.mockResolvedValue({ data: { user: mockUser, accessToken: 'tok-1' } });
     api.getHouses.mockResolvedValue({ data: [{ id: 'h-1', name: 'Home' }] });
@@ -130,6 +133,88 @@ describe('AuthContext', () => {
     });
     expect(screen.getByTestId('token').textContent).toBe('null');
     expect(screen.getByTestId('houseId').textContent).toBe('null');
+    expect(JSON.parse(screen.getByTestId('houses').textContent)).toEqual([]);
     expect(setToken).toHaveBeenCalledWith(null);
+  });
+
+  it('populates the houses array after session restore', async () => {
+    const mockUser = { id: 'u-1', email: 'a@b.com', displayName: 'Alice' };
+    api.refreshToken.mockResolvedValue({ data: { user: mockUser, accessToken: 'tok-1' } });
+    api.getHouses.mockResolvedValue({ data: [{ id: 'h-1', name: 'Home' }, { id: 'h-2', name: 'Cabin' }] });
+
+    renderWithAuth();
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    const houses = JSON.parse(screen.getByTestId('houses').textContent);
+    expect(houses).toHaveLength(2);
+    expect(houses[0].id).toBe('h-1');
+    expect(houses[1].id).toBe('h-2');
+  });
+
+  it('populates the houses array after login', async () => {
+    api.refreshToken.mockRejectedValue(new Error('No session'));
+    const mockUser = { id: 'u-1', email: 'a@b.com', displayName: 'Alice' };
+    api.login.mockResolvedValue({ data: { user: mockUser, accessToken: 'tok' } });
+    api.getHouses.mockResolvedValue({ data: [{ id: 'h-1', name: 'Home' }] });
+
+    const user = userEvent.setup();
+    renderWithAuth();
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    await user.click(screen.getByRole('button', { name: 'login' }));
+
+    await waitFor(() => {
+      const houses = JSON.parse(screen.getByTestId('houses').textContent);
+      expect(houses).toHaveLength(1);
+    });
+  });
+
+  it('setActiveHouseId allows switching to a different house', async () => {
+    const mockUser = { id: 'u-1', email: 'a@b.com', displayName: 'Alice' };
+    api.refreshToken.mockResolvedValue({ data: { user: mockUser, accessToken: 'tok-1' } });
+    api.getHouses.mockResolvedValue({ data: [{ id: 'h-1', name: 'Home' }] });
+
+    const user = userEvent.setup();
+    renderWithAuth();
+
+    await waitFor(() => expect(screen.getByTestId('houseId').textContent).toBe('h-1'));
+    await user.click(screen.getByRole('button', { name: 'switch house' }));
+    expect(screen.getByTestId('houseId').textContent).toBe('h-2');
+  });
+
+  it('refreshHouses preserves existing activeHouseId if house still present', async () => {
+    const mockUser = { id: 'u-1', email: 'a@b.com', displayName: 'Alice' };
+    api.refreshToken.mockResolvedValue({ data: { user: mockUser, accessToken: 'tok-1' } });
+    // First call returns h-1 and h-2; switch to h-2; refresh still returns both
+    api.getHouses.mockResolvedValue({ data: [{ id: 'h-1', name: 'Home' }, { id: 'h-2', name: 'Cabin' }] });
+
+    const user = userEvent.setup();
+    renderWithAuth();
+    await waitFor(() => expect(screen.getByTestId('houseId').textContent).toBe('h-1'));
+
+    await user.click(screen.getByRole('button', { name: 'switch house' }));
+    expect(screen.getByTestId('houseId').textContent).toBe('h-2');
+
+    await user.click(screen.getByRole('button', { name: 'refresh' }));
+    await waitFor(() => {
+      // activeHouseId should remain h-2 since prev is set (not null)
+      expect(screen.getByTestId('houseId').textContent).toBe('h-2');
+    });
+  });
+
+  it('refreshHouses clears activeHouseId when no houses are returned', async () => {
+    const mockUser = { id: 'u-1', email: 'a@b.com', displayName: 'Alice' };
+    api.refreshToken.mockResolvedValue({ data: { user: mockUser, accessToken: 'tok-1' } });
+    api.getHouses
+      .mockResolvedValueOnce({ data: [{ id: 'h-1', name: 'Home' }] }) // initial load
+      .mockResolvedValueOnce({ data: [] }); // refresh returns empty
+
+    const user = userEvent.setup();
+    renderWithAuth();
+    await waitFor(() => expect(screen.getByTestId('houseId').textContent).toBe('h-1'));
+
+    await user.click(screen.getByRole('button', { name: 'refresh' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('houseId').textContent).toBe('null');
+    });
   });
 });

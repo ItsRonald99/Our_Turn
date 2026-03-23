@@ -136,14 +136,30 @@ describe('assignmentService', () => {
     });
 
     it('uses today as dueDate when none is provided', async () => {
-      const before = new Date();
       const created = { id: 'a-1', houseId: 'house-1', choreTypeId: 'c-1', memberId: 'm-1', dueDate: new Date(), completedAt: null };
       mockDb.insert.mockReturnValue(makeChain(undefined));
       mockDb.select.mockReturnValue(makeChain([created]));
       await service.createAssignment('house-1', { choreTypeId: 'c-1', memberId: 'm-1' });
-      const after = new Date();
-      // Verify insert was called (dueDate defaulting is internal; just ensure no throw)
       expect(mockDb.insert).toHaveBeenCalled();
+    });
+
+    it('stores createdAt on insert for correct rotation ordering', async () => {
+      const before = new Date();
+      const created = { id: 'a-1', houseId: 'house-1', choreTypeId: 'c-1', memberId: 'm-1', dueDate: new Date(), completedAt: null, createdAt: new Date() };
+      const insertChain = makeChain(undefined);
+      mockDb.insert.mockReturnValue(insertChain);
+      mockDb.select.mockReturnValue(makeChain([created]));
+
+      await service.createAssignment('house-1', { choreTypeId: 'c-1', memberId: 'm-1' });
+
+      // values() is called on the insert chain with the record
+      expect(insertChain.values).toHaveBeenCalledWith(
+        expect.objectContaining({ createdAt: expect.any(Date) })
+      );
+      const after = new Date();
+      const insertedRecord = insertChain.values.mock.calls[0][0];
+      expect(insertedRecord.createdAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(insertedRecord.createdAt.getTime()).toBeLessThanOrEqual(after.getTime());
     });
   });
 
@@ -227,6 +243,29 @@ describe('assignmentService', () => {
       expect(saveDb).toHaveBeenCalled();
     });
 
+    it('updates dueDate and returns the updated assignment', async () => {
+      const newDue = new Date('2025-03-01');
+      const existing = { id: 'a-1', houseId: 'house-1', memberId: 'm-1', dueDate: new Date('2025-01-01'), completedAt: null };
+      const updated = { ...existing, dueDate: newDue };
+      mockDb.select
+        .mockReturnValueOnce(makeChain([existing]))
+        .mockReturnValueOnce(makeChain([updated]));
+      mockDb.update.mockReturnValue(makeChain(undefined));
+
+      const result = await service.updateAssignment('house-1', 'a-1', { dueDate: '2025-03-01' });
+      expect(result.dueDate).toEqual(newDue);
+      expect(saveDb).toHaveBeenCalled();
+    });
+
+    it('throws when dueDate is an invalid date string', async () => {
+      const existing = { id: 'a-1', houseId: 'house-1', memberId: 'm-1', completedAt: null };
+      mockDb.select.mockReturnValue(makeChain([existing]));
+
+      await expect(
+        service.updateAssignment('house-1', 'a-1', { dueDate: 'not-a-date' })
+      ).rejects.toThrow('Invalid dueDate');
+    });
+
     it('clears completedAt when passed null', async () => {
       const existing = { id: 'a-1', houseId: 'house-1', memberId: 'm-1', completedAt: new Date() };
       const updated = { ...existing, completedAt: null };
@@ -237,6 +276,37 @@ describe('assignmentService', () => {
 
       const result = await service.updateAssignment('house-1', 'a-1', { completedAt: null });
       expect(result.completedAt).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // deleteAssignment
+  // ---------------------------------------------------------------------------
+  describe('deleteAssignment', () => {
+    it('returns null when the assignment does not exist', async () => {
+      mockDb.select.mockReturnValue(makeChain([]));
+      const result = await service.deleteAssignment('house-1', 'missing');
+      expect(result).toBeNull();
+      expect(mockDb.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes the assignment and returns true', async () => {
+      const existing = { id: 'a-1', houseId: 'house-1', memberId: 'm-1', completedAt: null };
+      mockDb.select.mockReturnValue(makeChain([existing]));
+      mockDb.delete.mockReturnValue(makeChain(undefined));
+
+      const result = await service.deleteAssignment('house-1', 'a-1');
+      expect(result).toBe(true);
+      expect(mockDb.delete).toHaveBeenCalled();
+      expect(saveDb).toHaveBeenCalled();
+    });
+
+    it('does not delete assignments from a different house (cross-house safety)', async () => {
+      // Assignment exists under house-1, but we request delete from house-2
+      mockDb.select.mockReturnValue(makeChain([])); // getAssignmentById scoped to house-2 finds nothing
+      const result = await service.deleteAssignment('house-2', 'a-1');
+      expect(result).toBeNull();
+      expect(mockDb.delete).not.toHaveBeenCalled();
     });
   });
 

@@ -8,6 +8,7 @@ vi.mock('../../services/assignmentService.js', () => ({
   createAssignment: vi.fn(),
   updateAssignment: vi.fn(),
   markComplete: vi.fn(),
+  deleteAssignment: vi.fn(),
 }));
 
 // Bypass auth middleware in route unit tests
@@ -20,6 +21,7 @@ vi.mock('../../middleware/requireHouseMember.js', () => ({
 
 import * as assignmentService from '../../services/assignmentService.js';
 import assignmentsRouter from '../assignments.js';
+
 
 function createApp() {
   const app = express();
@@ -38,6 +40,7 @@ const makeAssignment = (overrides = {}) => ({
   memberId: 'm-1',
   dueDate: new Date('2024-06-01'),
   completedAt: null,
+  createdAt: new Date('2024-06-01'),
   ...overrides,
 });
 
@@ -181,6 +184,33 @@ describe('PATCH /houses/:houseId/assignments/:assignmentId', () => {
     );
   });
 
+  it('passes dueDate to the service', async () => {
+    const updated = makeAssignment({ dueDate: new Date('2025-01-15') });
+    assignmentService.updateAssignment.mockResolvedValue(updated);
+
+    const res = await request(createApp())
+      .patch(`${BASE}/a-1`)
+      .send({ dueDate: '2025-01-15' });
+
+    expect(res.status).toBe(200);
+    expect(assignmentService.updateAssignment).toHaveBeenCalledWith(
+      HOUSE_ID,
+      'a-1',
+      expect.objectContaining({ dueDate: '2025-01-15' })
+    );
+  });
+
+  it('returns 400 when the service throws Invalid dueDate', async () => {
+    assignmentService.updateAssignment.mockRejectedValue(new Error('Invalid dueDate'));
+
+    const res = await request(createApp())
+      .patch(`${BASE}/a-1`)
+      .send({ dueDate: 'not-a-date' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid dueDate');
+  });
+
   it('returns 404 when assignment is not found', async () => {
     assignmentService.updateAssignment.mockResolvedValue(null);
 
@@ -192,13 +222,40 @@ describe('PATCH /houses/:houseId/assignments/:assignmentId', () => {
     expect(res.body.error).toBe('Assignment not found');
   });
 
-  it('returns 500 when service throws', async () => {
+  it('returns 500 when service throws a generic error', async () => {
     assignmentService.updateAssignment.mockRejectedValue(new Error('DB error'));
 
     const res = await request(createApp())
       .patch(`${BASE}/a-1`)
       .send({ memberId: 'm-1' });
 
+    expect(res.status).toBe(500);
+  });
+});
+
+describe('DELETE /houses/:houseId/assignments/:assignmentId', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 204 on successful deletion', async () => {
+    assignmentService.deleteAssignment.mockResolvedValue(true);
+
+    const res = await request(createApp()).delete(`${BASE}/a-1`);
+    expect(res.status).toBe(204);
+    expect(assignmentService.deleteAssignment).toHaveBeenCalledWith(HOUSE_ID, 'a-1');
+  });
+
+  it('returns 404 when the assignment does not exist', async () => {
+    assignmentService.deleteAssignment.mockResolvedValue(null);
+
+    const res = await request(createApp()).delete(`${BASE}/missing`);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Assignment not found');
+  });
+
+  it('returns 500 when the service throws', async () => {
+    assignmentService.deleteAssignment.mockRejectedValue(new Error('DB error'));
+
+    const res = await request(createApp()).delete(`${BASE}/a-1`);
     expect(res.status).toBe(500);
   });
 });

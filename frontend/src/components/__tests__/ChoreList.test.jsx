@@ -1,10 +1,13 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ChoreList } from '../ChoreList';
 
-// ChoreList renders ChoreCard which uses useCompleteAssignment internally
+// ChoreList renders ChoreCard which uses these hooks internally
 vi.mock('../../hooks/useChores', () => ({
   useCompleteAssignment: vi.fn(() => ({ mutate: vi.fn(), isLoading: false })),
+  useUpdateAssignment: vi.fn(() => ({ mutate: vi.fn(), isLoading: false })),
+  useDeleteAssignment: vi.fn(() => ({ mutate: vi.fn(), isLoading: false })),
 }));
 
 const makeChoreType = (id, name) => ({ id, houseId: 'house-1', name, rotationOrder: 0 });
@@ -120,7 +123,7 @@ describe('ChoreList', () => {
   });
 
   it('renders the "Assignments" heading', () => {
-    render(<ChoreList houseId="house-1" assignments={[]} choreTypes={[]} members={[]} />);
+    render(<ChoreList houseId="house-1" assignments={[]} choreTypes={[]} members={[]} showCompleted={false} onToggleCompleted={vi.fn()} />);
     expect(screen.getByRole('heading', { name: /Assignments/i })).toBeInTheDocument();
   });
 
@@ -133,9 +136,54 @@ describe('ChoreList', () => {
         houseId="house-1"
         assignments={assignments}
         choreTypes={choreTypes}
-        members={[]} // empty
+        members={[]}
+        showCompleted={false}
+        onToggleCompleted={vi.fn()}
       />
     );
     expect(screen.getByText('Unassigned')).toBeInTheDocument();
+  });
+
+  it('renders the "Show completed" filter checkbox', () => {
+    render(<ChoreList houseId="house-1" assignments={[]} choreTypes={[]} members={[]} showCompleted={false} onToggleCompleted={vi.fn()} />);
+    expect(screen.getByRole('checkbox')).toBeInTheDocument();
+    expect(screen.getByLabelText(/show completed/i)).toBeInTheDocument();
+  });
+
+  it('checkbox is checked when showCompleted is true', () => {
+    render(<ChoreList houseId="house-1" assignments={[]} choreTypes={[]} members={[]} showCompleted={true} onToggleCompleted={vi.fn()} />);
+    expect(screen.getByRole('checkbox')).toBeChecked();
+  });
+
+  it('checkbox is unchecked when showCompleted is false', () => {
+    render(<ChoreList houseId="house-1" assignments={[]} choreTypes={[]} members={[]} showCompleted={false} onToggleCompleted={vi.fn()} />);
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
+  });
+
+  it('calls onToggleCompleted when the checkbox is clicked', async () => {
+    const user = userEvent.setup();
+    const onToggle = vi.fn();
+    render(<ChoreList houseId="house-1" assignments={[]} choreTypes={[]} members={[]} showCompleted={false} onToggleCompleted={onToggle} />);
+    await user.click(screen.getByRole('checkbox'));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes members down so ChoreCard can show member names in edit mode', () => {
+    const choreTypes = [makeChoreType('ct-1', 'Garbage')];
+    const members = [makeMember('m-1', 'Alice'), makeMember('m-2', 'Bob')];
+    const assignments = [makeAssignment()];
+
+    render(
+      <ChoreList
+        houseId="house-1"
+        assignments={assignments}
+        choreTypes={choreTypes}
+        members={members}
+        showCompleted={false}
+        onToggleCompleted={vi.fn()}
+      />
+    );
+    // The member name is rendered via ChoreCard using the memberMap
+    expect(screen.getByText('Alice')).toBeInTheDocument();
   });
 });
