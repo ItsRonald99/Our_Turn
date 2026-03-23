@@ -68,6 +68,8 @@ export const api = {
     request('/houses', { method: 'POST', body: JSON.stringify(body) }),
   joinHouse: (body) =>
     request('/houses/join', { method: 'POST', body: JSON.stringify(body) }),
+  deleteHouse: (houseId) =>
+    request(`/houses/${houseId}`, { method: 'DELETE' }),
 
   // Chore types
   getChoreTypes: (houseId) => request(`/houses/${houseId}/chore-types`),

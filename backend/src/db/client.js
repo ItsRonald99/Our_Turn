@@ -47,6 +47,7 @@ async function init() {
   } else {
     _sqlDb = new SQL.Database();
   }
+  _sqlDb.run('PRAGMA foreign_keys = ON;');
   _db = drizzle(_sqlDb, { schema });
   runMigrations();
   return _db;

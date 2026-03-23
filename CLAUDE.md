@@ -23,6 +23,10 @@ npm run db:generate      # Regenerate migration SQL from schema changes (run ins
 npm run build            # Build both backend and frontend
 cd backend && npm test   # Run backend tests (Vitest)
 cd frontend && npm test  # Run frontend tests (Vitest)
+
+# Run a single test file
+cd frontend && npx vitest run src/components/__tests__/AddAssignmentForm.test.jsx
+cd backend  && npx vitest run src/__tests__/assignments.test.js
 ```
 
 ### Environment

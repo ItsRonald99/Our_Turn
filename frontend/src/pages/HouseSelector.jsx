@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 
 export function HouseSelector() {
-  const { houses, setActiveHouseId, refreshHouses, logout } = useAuth();
+  const { user, houses, activeHouseId, setActiveHouseId, refreshHouses, logout } = useAuth();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState('create');
@@ -13,6 +13,24 @@ export function HouseSelector() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async (houseId) => {
+    setIsDeleting(true);
+    setError('');
+    try {
+      await api.deleteHouse(houseId);
+      if (activeHouseId === houseId) setActiveHouseId(null);
+      await refreshHouses();
+      setConfirmDeleteId(null);
+    } catch (err) {
+      setError(err.message || 'Failed to delete house');
+      setConfirmDeleteId(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Re-fetch on mount in case applyAuth ran before the token was ready
   useEffect(() => {
@@ -61,19 +79,61 @@ export function HouseSelector() {
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <div className="auth-card__user-bar">
+          <span className="auth-card__username">{user?.displayName || user?.email}</span>
+          <button type="button" className="auth-card__signout" onClick={logout}>
+            Sign out
+          </button>
+        </div>
+
         <h1 className="auth-card__title">Your Houses</h1>
+
+        {error && <p className="auth-form__error">{error}</p>}
 
         {houses.length > 0 ? (
           <ul className="house-selector__list">
             {houses.map((h) => (
-              <li key={h.id}>
-                <button
-                  type="button"
-                  className="house-selector__item"
-                  onClick={() => selectHouse(h.id)}
-                >
-                  {h.name}
-                </button>
+              <li key={h.id} className="house-selector__list-item">
+                {confirmDeleteId === h.id ? (
+                  <div className="house-selector__confirm-delete">
+                    <span>Delete &ldquo;{h.name}&rdquo;? This removes all chores and members.</span>
+                    <button
+                      type="button"
+                      className="house-selector__confirm-btn"
+                      onClick={() => handleDelete(h.id)}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? 'Deleting…' : 'Delete'}
+                    </button>
+                    <button
+                      type="button"
+                      className="house-selector__cancel-btn"
+                      onClick={() => setConfirmDeleteId(null)}
+                      disabled={isDeleting}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="house-selector__item"
+                      onClick={() => selectHouse(h.id)}
+                    >
+                      {h.name}
+                    </button>
+                    <button
+                      type="button"
+                      className="house-selector__delete"
+                      onClick={() => setConfirmDeleteId(h.id)}
+                      title={`Delete ${h.name}`}
+                      aria-label={`Delete ${h.name}`}
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -121,7 +181,6 @@ export function HouseSelector() {
                     autoFocus
                   />
                 </label>
-                {error && <p className="auth-form__error">{error}</p>}
                 <button type="submit" disabled={isSubmitting || !houseName.trim()} className="auth-form__submit">
                   {isSubmitting ? 'Creating…' : 'Create house'}
                 </button>
@@ -142,7 +201,6 @@ export function HouseSelector() {
                     autoFocus
                   />
                 </label>
-                {error && <p className="auth-form__error">{error}</p>}
                 <button type="submit" disabled={isSubmitting || inviteCode.trim().length < 6} className="auth-form__submit">
                   {isSubmitting ? 'Joining…' : 'Join house'}
                 </button>
@@ -161,11 +219,6 @@ export function HouseSelector() {
           </div>
         )}
 
-        <p className="auth-card__footer">
-          <button type="button" className="auth-card__signout" onClick={logout}>
-            Sign out
-          </button>
-        </p>
       </div>
     </div>
   );

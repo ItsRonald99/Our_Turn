@@ -11,6 +11,7 @@ vi.mock('../../api/client', () => ({
   api: {
     createHouse: vi.fn(),
     joinHouse: vi.fn(),
+    deleteHouse: vi.fn(),
   },
 }));
 
@@ -27,10 +28,13 @@ import { HouseSelector } from '../HouseSelector';
 const mockSetActiveHouseId = vi.fn();
 const mockRefreshHouses = vi.fn();
 const mockLogout = vi.fn();
+const mockUser = { id: 'u-1', email: 'alice@example.com', displayName: 'Alice' };
 
-function setupAuth(houses = []) {
+function setupAuth(houses = [], activeHouseId = null) {
   useAuth.mockReturnValue({
+    user: mockUser,
     houses,
+    activeHouseId,
     setActiveHouseId: mockSetActiveHouseId,
     refreshHouses: mockRefreshHouses,
     logout: mockLogout,
@@ -254,6 +258,157 @@ describe('HouseSelector', () => {
       renderSelector();
       await user.click(screen.getByRole('button', { name: /sign out/i }));
       expect(mockLogout).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the user display name in the header', () => {
+      setupAuth([]);
+      renderSelector();
+      expect(screen.getByText('Alice')).toBeInTheDocument();
+    });
+  });
+
+  describe('delete house flow', () => {
+    const houses = [
+      { id: 'h-1', name: 'The Blue House' },
+      { id: 'h-2', name: 'Cabin' },
+    ];
+
+    beforeEach(() => {
+      setupAuth(houses, 'h-1');
+      mockRefreshHouses.mockResolvedValue(houses);
+    });
+
+    it('shows a delete button for each house', () => {
+      renderSelector();
+      expect(screen.getByRole('button', { name: /Delete The Blue House/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Delete Cabin/i })).toBeInTheDocument();
+    });
+
+    it('clicking delete shows an inline confirmation prompt', async () => {
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      expect(screen.getByText((t) => t.includes('The Blue House') && t.includes('?'))).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^Cancel$/i })).toBeInTheDocument();
+    });
+
+    it('Cancel dismisses the confirmation without deleting', async () => {
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Cancel$/i }));
+      expect(api.deleteHouse).not.toHaveBeenCalled();
+      expect(screen.queryByText(/Delete "The Blue House"\?/)).not.toBeInTheDocument();
+    });
+
+    it('confirming delete calls api.deleteHouse and refreshes', async () => {
+      api.deleteHouse.mockResolvedValue({});
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      await waitFor(() => expect(api.deleteHouse).toHaveBeenCalledWith('h-1'));
+      expect(mockRefreshHouses).toHaveBeenCalled();
+    });
+
+    it('clears activeHouseId if the deleted house was active', async () => {
+      api.deleteHouse.mockResolvedValue({});
+      const user = userEvent.setup();
+      renderSelector(); // activeHouseId is 'h-1'
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      await waitFor(() => expect(mockSetActiveHouseId).toHaveBeenCalledWith(null));
+    });
+
+    it('does not clear activeHouseId when deleting a non-active house', async () => {
+      api.deleteHouse.mockResolvedValue({});
+      const user = userEvent.setup();
+      renderSelector(); // activeHouseId is 'h-1', deleting 'h-2'
+      await user.click(screen.getByRole('button', { name: /Delete Cabin/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      await waitFor(() => expect(api.deleteHouse).toHaveBeenCalledWith('h-2'));
+      expect(mockSetActiveHouseId).not.toHaveBeenCalled();
+    });
+
+    it('shows error message when delete fails', async () => {
+      api.deleteHouse.mockRejectedValue(new Error('Server error'));
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      await waitFor(() => expect(screen.getByText('Server error')).toBeInTheDocument());
+    });
+
+    it('only shows confirmation for the clicked house, not others', async () => {
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      // Confirmation appears for The Blue House
+      expect(screen.getByText((t) => t.includes('The Blue House') && t.includes('?'))).toBeInTheDocument();
+      // Cabin's delete button is still visible (no confirmation for it)
+      expect(screen.getByRole('button', { name: /Delete Cabin/i })).toBeInTheDocument();
+    });
+
+    it('Delete confirm button is disabled and shows "Deleting…" while in-flight', async () => {
+      let resolve;
+      api.deleteHouse.mockReturnValue(new Promise((r) => { resolve = r; }));
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      expect(screen.getByRole('button', { name: /Deleting…/i })).toBeDisabled();
+      resolve({});
+    });
+
+    it('Cancel button inside confirmation is disabled while delete is in-flight', async () => {
+      let resolve;
+      api.deleteHouse.mockReturnValue(new Promise((r) => { resolve = r; }));
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      expect(screen.getByRole('button', { name: /^Cancel$/i })).toBeDisabled();
+      resolve({});
+    });
+
+    it('confirmation is cleared after a successful delete', async () => {
+      api.deleteHouse.mockResolvedValue({});
+      mockRefreshHouses.mockResolvedValue([houses[1]]); // only Cabin remains
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /Deleting…/i })).not.toBeInTheDocument();
+        expect(screen.queryByText((t) => t.includes('The Blue House') && t.includes('?'))).not.toBeInTheDocument();
+      });
+    });
+
+    it('after error the delete button for that house is still shown (user can retry)', async () => {
+      api.deleteHouse.mockRejectedValue(new Error('Server error'));
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      await waitFor(() => expect(screen.getByText('Server error')).toBeInTheDocument());
+      // The delete button for The Blue House should be back
+      expect(screen.getByRole('button', { name: /Delete The Blue House/i })).toBeInTheDocument();
+    });
+
+    it('deleting the only house works and clears activeHouseId', async () => {
+      const singleHouse = [{ id: 'h-1', name: 'The Blue House' }];
+      setupAuth(singleHouse, 'h-1');
+      mockRefreshHouses.mockResolvedValue([]);
+      api.deleteHouse.mockResolvedValue({});
+      const user = userEvent.setup();
+      renderSelector();
+      await user.click(screen.getByRole('button', { name: /Delete The Blue House/i }));
+      await user.click(screen.getByRole('button', { name: /^Delete$/i }));
+      await waitFor(() => {
+        expect(api.deleteHouse).toHaveBeenCalledWith('h-1');
+        expect(mockSetActiveHouseId).toHaveBeenCalledWith(null);
+      });
     });
   });
 });

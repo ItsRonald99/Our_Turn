@@ -164,3 +164,75 @@ describe('GET /houses/:houseId', () => {
     expect(res.body.error).toBe('House not found');
   });
 });
+
+import { saveDb } from '../../db/client.js';
+
+describe('DELETE /houses/:houseId', () => {
+  let mockDb;
+
+  beforeEach(() => {
+    mockDb = createMockDb();
+    vi.clearAllMocks();
+    getDbSync.mockReturnValue(mockDb);
+  });
+
+  it('returns 204 on successful delete', async () => {
+    mockDb.delete.mockReturnValue(makeChain(undefined));
+
+    const res = await request(createApp()).delete('/houses/house-1');
+    expect(res.status).toBe(204);
+    expect(res.body).toEqual({});
+  });
+
+  it('calls db.delete with the correct houseId', async () => {
+    mockDb.delete.mockReturnValue(makeChain(undefined));
+
+    await request(createApp()).delete('/houses/house-1');
+
+    expect(mockDb.delete).toHaveBeenCalledTimes(1);
+    // The chain's where() receives the eq condition — verify delete was invoked
+    const chain = mockDb.delete.mock.results[0].value;
+    expect(chain.where).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls saveDb after delete', async () => {
+    mockDb.delete.mockReturnValue(makeChain(undefined));
+
+    await request(createApp()).delete('/houses/house-1');
+
+    expect(saveDb).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call saveDb when the delete throws', async () => {
+    mockDb.delete.mockReturnValue({
+      where: vi.fn(() => Promise.reject(new Error('DB error'))),
+    });
+
+    const res = await request(createApp()).delete('/houses/house-1');
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('DB error');
+    expect(saveDb).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 with error message on DB failure', async () => {
+    mockDb.delete.mockReturnValue({
+      where: vi.fn(() => Promise.reject(new Error('Unexpected DB error'))),
+    });
+
+    const res = await request(createApp()).delete('/houses/house-1');
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Unexpected DB error');
+  });
+
+  it('response body is empty on success (204 No Content)', async () => {
+    mockDb.delete.mockReturnValue(makeChain(undefined));
+
+    const res = await request(createApp()).delete('/houses/house-1');
+
+    expect(res.status).toBe(204);
+    // supertest parses empty body as empty string, not JSON
+    expect(res.text).toBe('');
+  });
+});

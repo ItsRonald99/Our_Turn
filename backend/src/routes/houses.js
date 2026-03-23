@@ -119,4 +119,16 @@ router.get('/:houseId', requireAuth, requireHouseMember, async (req, res) => {
   }
 });
 
+/** DELETE /houses/:houseId — delete a house and all its data (members only) */
+router.delete('/:houseId', requireAuth, requireHouseMember, async (req, res) => {
+  try {
+    const db = getDbSync();
+    await db.delete(houses).where(eq(houses.id, req.params.houseId));
+    saveDb();
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

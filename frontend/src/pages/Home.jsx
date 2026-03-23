@@ -7,12 +7,31 @@ import { ChoreList } from '../components/ChoreList';
 import { MemberList } from '../components/MemberList';
 import { AddAssignmentForm } from '../components/AddAssignmentForm';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { api } from '../api/client';
 
 export function Home() {
   const houseId = useHouseId();
-  const { user, houses, logout } = useAuth();
+  const { user, houses, setActiveHouseId, refreshHouses, logout } = useAuth();
   const navigate = useNavigate();
   const [showCompleted, setShowCompleted] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDeleteHouse = async () => {
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      await api.deleteHouse(houseId);
+      setActiveHouseId(null);
+      await refreshHouses();
+      navigate('/houses');
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete house');
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
   const { data: choreTypes = [], isLoading: typesLoading } = useChoreTypes(houseId);
   const { data: assignments = [], isLoading: assignmentsLoading } = useAssignments(
     houseId,
@@ -31,14 +50,47 @@ export function Home() {
       <header className="page-home__header">
         <div>
           <h1>Our Turn</h1>
-          <button
-            type="button"
-            className="page-home__house-switch"
-            onClick={() => navigate('/houses')}
-            title="Switch house"
-          >
-            {activeHouse?.name ?? 'My House'}
-          </button>
+          <div className="page-home__house-row">
+            <button
+              type="button"
+              className="page-home__house-switch"
+              onClick={() => navigate('/houses')}
+              title="Switch house"
+            >
+              {activeHouse?.name ?? 'My House'}
+            </button>
+            <button
+              type="button"
+              className="page-home__house-delete"
+              onClick={() => { setShowDeleteConfirm(true); setDeleteError(''); }}
+              title="Delete this house"
+              aria-label="Delete this house"
+            >
+              ✕
+            </button>
+          </div>
+          {showDeleteConfirm && (
+            <div className="page-home__delete-confirm">
+              <span>Delete &ldquo;{activeHouse?.name}&rdquo;? This will remove all chores and members.</span>
+              <button
+                type="button"
+                className="page-home__delete-confirm-btn"
+                onClick={handleDeleteHouse}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting…' : 'Delete'}
+              </button>
+              <button
+                type="button"
+                className="page-home__delete-cancel-btn"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+          {deleteError && <p className="page-home__delete-error">{deleteError}</p>}
         </div>
         <div className="page-home__user">
           <span>{user?.displayName || user?.email}</span>
