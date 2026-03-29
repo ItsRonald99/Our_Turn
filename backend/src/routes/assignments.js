@@ -33,17 +33,36 @@ router.post('/', async (req, res) => {
     if (!choreTypeId) {
       return res.status(400).json({ error: 'choreTypeId is required' });
     }
+
+    if (recurrenceType != null) {
+      if (!['interval', 'weekday'].includes(recurrenceType)) {
+        return res.status(400).json({ error: "recurrenceType must be 'interval' or 'weekday'" });
+      }
+      const v = recurrenceValue !== undefined ? Number(recurrenceValue) : undefined;
+      if (recurrenceType === 'interval') {
+        if (v === undefined || !Number.isInteger(v) || v < 1 || v > 365) {
+          return res.status(400).json({ error: 'recurrenceValue must be a whole number between 1 and 365 for interval type' });
+        }
+      }
+      if (recurrenceType === 'weekday') {
+        if (v === undefined || !Number.isInteger(v) || v < 0 || v > 6) {
+          return res.status(400).json({ error: 'recurrenceValue must be a whole number between 0 and 6 (Sun–Sat) for weekday type' });
+        }
+      }
+    }
+
+    const recurrenceValueNum = recurrenceValue !== undefined ? Number(recurrenceValue) : undefined;
     const data = await assignmentService.createAssignment(houseId, {
       choreTypeId,
       memberId: memberId || undefined,
       dueDate: dueDate || undefined,
       useRotation: Boolean(useRotation),
       recurrenceType: recurrenceType || undefined,
-      recurrenceValue: recurrenceValue !== undefined ? Number(recurrenceValue) : undefined,
+      recurrenceValue: recurrenceValueNum,
     });
     res.status(201).json({ data });
   } catch (err) {
-    if (err.message?.includes('No member')) {
+    if (err.message?.includes('No member') || err.message?.startsWith('recurrence')) {
       return res.status(400).json({ error: err.message });
     }
     res.status(500).json({ error: err.message });

@@ -48,6 +48,7 @@ export const choreAssignments = sqliteTable('chore_assignments', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(0),
   recurrenceType: text('recurrence_type'),   // null | 'interval' | 'weekday'
   recurrenceValue: integer('recurrence_value'), // 'interval': N days; 'weekday': 0-6 (JS getDay())
+  useRotation: integer('use_rotation', { mode: 'boolean' }).notNull().default(false),
 });
 
 export const houseInvitations = sqliteTable('house_invitations', {

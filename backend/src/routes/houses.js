@@ -1,19 +1,21 @@
 import { Router } from 'express';
 import { eq, inArray, and } from 'drizzle-orm';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomInt } from 'crypto';
 import { getDbSync, saveDb } from '../db/client.js';
 import { houses, householdMembers, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireHouseMember } from '../middleware/requireHouseMember.js';
 import { requireHouseOwner } from '../middleware/requireHouseOwner.js';
+import { joinHouseLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
 const MAX_CODE_ATTEMPTS = 10;
 
-// Returns a random zero-padded 6-digit numeric string, e.g. '007342' or '982451'.
+// Returns a cryptographically secure random zero-padded 6-digit numeric string,
+// e.g. '007342' or '982451'.
 function generateInviteCode() {
-  return Math.floor(Math.random() * 1_000_000).toString().padStart(6, '0');
+  return randomInt(0, 1_000_000).toString().padStart(6, '0');
 }
 
 // Generates a code that does not already exist in the houses table.
@@ -89,7 +91,7 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 /** POST /houses/join — join a house using an invite code */
-router.post('/join', requireAuth, async (req, res) => {
+router.post('/join', requireAuth, joinHouseLimiter, async (req, res) => {
   try {
     const db = getDbSync();
     const { inviteCode } = req.body ?? {};

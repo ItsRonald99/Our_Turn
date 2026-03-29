@@ -153,7 +153,7 @@ describe('POST /houses/:houseId/assignments', () => {
     expect(res.body.error).toContain('No member');
   });
 
-  it('returns 500 when service throws a generic error', async () => {
+  it('returns 400 when service throws a generic error', async () => {
     assignmentService.createAssignment.mockRejectedValue(new Error('Unexpected failure'));
 
     const res = await request(createApp())
@@ -161,6 +161,99 @@ describe('POST /houses/:houseId/assignments', () => {
       .send({ choreTypeId: 'ct-1', memberId: 'm-1' });
 
     expect(res.status).toBe(500);
+  });
+
+  // --- Security: route-level recurrence validation ---
+
+  it('returns 400 for an invalid recurrenceType', async () => {
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'daily', recurrenceValue: 1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/recurrenceType/);
+    expect(assignmentService.createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for weekday recurrenceValue of 7 (out-of-range — DoS vector)', async () => {
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'weekday', recurrenceValue: 7 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/0 and 6/);
+    expect(assignmentService.createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for negative weekday recurrenceValue', async () => {
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'weekday', recurrenceValue: -1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/0 and 6/);
+    expect(assignmentService.createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for a float weekday recurrenceValue', async () => {
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'weekday', recurrenceValue: 2.5 });
+
+    expect(res.status).toBe(400);
+    expect(assignmentService.createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for interval recurrenceValue of 0', async () => {
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'interval', recurrenceValue: 0 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/1 and 365/);
+    expect(assignmentService.createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for interval recurrenceValue exceeding 365', async () => {
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'interval', recurrenceValue: 400 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/1 and 365/);
+    expect(assignmentService.createAssignment).not.toHaveBeenCalled();
+  });
+
+  it('accepts valid interval recurrence (boundary: 1 day)', async () => {
+    assignmentService.createAssignment.mockResolvedValue(makeAssignment());
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'interval', recurrenceValue: 1 });
+
+    expect(res.status).toBe(201);
+    expect(assignmentService.createAssignment).toHaveBeenCalled();
+  });
+
+  it('accepts valid weekday recurrence (boundary: 0 = Sunday)', async () => {
+    assignmentService.createAssignment.mockResolvedValue(makeAssignment());
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'weekday', recurrenceValue: 0 });
+
+    expect(res.status).toBe(201);
+    expect(assignmentService.createAssignment).toHaveBeenCalled();
+  });
+
+  it('returns 400 when service throws a recurrence error (defence-in-depth)', async () => {
+    assignmentService.createAssignment.mockRejectedValue(
+      new Error("recurrenceType must be 'interval' or 'weekday'")
+    );
+
+    const res = await request(createApp())
+      .post(BASE)
+      .send({ choreTypeId: 'ct-1', memberId: 'm-1', recurrenceType: 'weekday', recurrenceValue: 3 });
+
+    expect(res.status).toBe(400);
   });
 });
 

@@ -31,6 +31,7 @@ export function ChoreCard({ houseId, assignment, choreTypeName, memberName, memb
   const [editMemberId, setEditMemberId] = useState(assignment.memberId ?? '');
   const [editDueDate, setEditDueDate] = useState(toDateInputValue(assignment.dueDate));
   const [editError, setEditError] = useState('');
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
 
   const due = assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : '—';
   const isCompleted = !!assignment.completedAt;
@@ -130,13 +131,35 @@ export function ChoreCard({ houseId, assignment, choreTypeName, memberName, memb
         <div className="chore-card__assignee">{memberName ?? 'Unassigned'}</div>
       )}
 
+      {!isEditing && showCompleteConfirm && (
+        <div className="chore-card__complete-confirm">
+          <span>Mark &ldquo;{choreTypeName}&rdquo; as done?</span>
+          <button
+            type="button"
+            className="chore-card__complete-confirm-btn"
+            onClick={() => { setShowCompleteConfirm(false); complete.mutate(assignment.id); }}
+            disabled={isBusy}
+          >
+            Confirm
+          </button>
+          <button
+            type="button"
+            className="chore-card__complete-cancel-btn"
+            onClick={() => setShowCompleteConfirm(false)}
+            disabled={isBusy}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {!isEditing && (
         <div className="chore-card__actions">
           {!isCompleted && (
             <button
               type="button"
               className="chore-card__complete"
-              onClick={() => complete.mutate(assignment.id)}
+              onClick={() => setShowCompleteConfirm(true)}
               disabled={isBusy}
             >
               {complete.isLoading ? '…' : 'Mark done'}

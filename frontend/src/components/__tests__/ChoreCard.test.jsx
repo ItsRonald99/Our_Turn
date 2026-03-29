@@ -120,14 +120,45 @@ describe('ChoreCard — display', () => {
   });
 });
 
-describe('ChoreCard — mark complete', () => {
+describe('ChoreCard — mark complete confirmation', () => {
   beforeEach(() => { vi.clearAllMocks(); setupMocks(); });
 
-  it('calls complete.mutate with the assignment ID', async () => {
+  it('clicking "Mark done" shows the confirmation panel, not an immediate mutation', async () => {
     const user = userEvent.setup();
     renderCard({ id: 'a-42' });
     await user.click(screen.getByRole('button', { name: /Mark done/i }));
+    expect(completeMutate).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Confirm/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
+  });
+
+  it('shows the chore type name in the confirmation message', async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole('button', { name: /Mark done/i }));
+    expect(screen.getByText((t) => t.includes('Garbage') && t.includes('?'))).toBeInTheDocument();
+  });
+
+  it('calls complete.mutate with the assignment ID after confirming', async () => {
+    const user = userEvent.setup();
+    renderCard({ id: 'a-42' });
+    await user.click(screen.getByRole('button', { name: /Mark done/i }));
+    await user.click(screen.getByRole('button', { name: /Confirm/i }));
     expect(completeMutate).toHaveBeenCalledWith('a-42');
+  });
+
+  it('cancelling dismisses the confirmation without calling mutate', async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(screen.getByRole('button', { name: /Mark done/i }));
+    await user.click(screen.getByRole('button', { name: /Cancel/i }));
+    expect(completeMutate).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Confirm/i })).not.toBeInTheDocument();
+  });
+
+  it('confirmation panel is not shown initially', () => {
+    renderCard();
+    expect(screen.queryByRole('button', { name: /Confirm/i })).not.toBeInTheDocument();
   });
 });
 

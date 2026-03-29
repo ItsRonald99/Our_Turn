@@ -5,13 +5,14 @@ import { getDbSync, saveDb } from '../db/client.js';
 import { houseInvitations, householdMembers, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireHouseMember } from '../middleware/requireHouseMember.js';
+import { invitationLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router({ mergeParams: true });
 
 router.use(requireAuth, requireHouseMember);
 
 /** POST /houses/:houseId/invitations — invite a registered user to this house by email */
-router.post('/', async (req, res) => {
+router.post('/', invitationLimiter, async (req, res) => {
   try {
     const db = getDbSync();
     const { houseId } = req.params;

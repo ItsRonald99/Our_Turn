@@ -37,16 +37,24 @@ export async function getNextAssignee(houseId, choreTypeId) {
 
 /**
  * Calculate the next due date for a recurring assignment.
- * - 'interval': advance by recurrenceValue days
+ * - 'interval': advance by recurrenceValue days (must be integer 1–365)
  * - 'weekday': find the next occurrence of recurrenceValue (0=Sun…6=Sat) after fromDate
+ * Returns null for unknown/invalid types or out-of-range values.
  */
 export function nextRecurringDueDate(fromDate, recurrenceType, recurrenceValue) {
   const d = new Date(fromDate);
   if (recurrenceType === 'interval') {
+    if (!Number.isInteger(recurrenceValue) || recurrenceValue < 1 || recurrenceValue > 365) {
+      return null;
+    }
     d.setUTCDate(d.getUTCDate() + recurrenceValue);
     return d;
   }
   if (recurrenceType === 'weekday') {
+    // Guard: must be a valid JS day integer (0=Sun … 6=Sat)
+    if (!Number.isInteger(recurrenceValue) || recurrenceValue < 0 || recurrenceValue > 6) {
+      return null;
+    }
     // Advance at least 1 day so we never land on the same date
     d.setUTCDate(d.getUTCDate() + 1);
     while (d.getUTCDay() !== recurrenceValue) {
@@ -61,6 +69,22 @@ export function nextRecurringDueDate(fromDate, recurrenceType, recurrenceValue) 
  * Create a new assignment, optionally using rotation to pick the member.
  */
 export async function createAssignment(houseId, { choreTypeId, memberId, dueDate, useRotation, recurrenceType, recurrenceValue }) {
+  if (recurrenceType != null) {
+    if (!['interval', 'weekday'].includes(recurrenceType)) {
+      throw new Error("recurrenceType must be 'interval' or 'weekday'");
+    }
+    if (recurrenceType === 'interval') {
+      if (!Number.isInteger(recurrenceValue) || recurrenceValue < 1 || recurrenceValue > 365) {
+        throw new Error('recurrenceValue must be a whole number between 1 and 365 for interval recurrence');
+      }
+    }
+    if (recurrenceType === 'weekday') {
+      if (!Number.isInteger(recurrenceValue) || recurrenceValue < 0 || recurrenceValue > 6) {
+        throw new Error('recurrenceValue must be a whole number between 0 and 6 (Sun–Sat) for weekday recurrence');
+      }
+    }
+  }
+
   let assigneeId = memberId;
   if (useRotation && !assigneeId) {
     const next = await getNextAssignee(houseId, choreTypeId);
@@ -83,6 +107,7 @@ export async function createAssignment(houseId, { choreTypeId, memberId, dueDate
     createdAt: new Date(),
     recurrenceType: recurrenceType ?? null,
     recurrenceValue: recurrenceValue ?? null,
+    useRotation: Boolean(useRotation),
   });
   saveDb();
   return getAssignmentById(houseId, id);
@@ -155,11 +180,16 @@ export async function markComplete(houseId, assignmentId) {
   if (completed.recurrenceType && completed.recurrenceValue !== null && completed.recurrenceValue !== undefined) {
     const nextDue = nextRecurringDueDate(completed.dueDate, completed.recurrenceType, completed.recurrenceValue);
     if (nextDue) {
+      let nextMemberId = completed.memberId;
+      if (completed.useRotation) {
+        const next = await getNextAssignee(houseId, completed.choreTypeId);
+        nextMemberId = next?.id ?? completed.memberId;
+      }
       await createAssignment(houseId, {
         choreTypeId: completed.choreTypeId,
-        memberId: completed.memberId,
+        memberId: nextMemberId,
         dueDate: nextDue,
-        useRotation: false,
+        useRotation: completed.useRotation,
         recurrenceType: completed.recurrenceType,
         recurrenceValue: completed.recurrenceValue,
       });

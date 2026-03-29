@@ -336,13 +336,13 @@ describe('assignmentService', () => {
       const dueDate = new Date('2025-06-01');
       const existing = {
         id: 'a-1', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-1',
-        dueDate, completedAt: null, recurrenceType: 'interval', recurrenceValue: 7,
+        dueDate, completedAt: null, recurrenceType: 'interval', recurrenceValue: 7, useRotation: false,
       };
       const completed = { ...existing, completedAt: new Date() };
       const spawned = {
         id: 'a-2', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-1',
         dueDate: new Date('2025-06-08'), completedAt: null,
-        recurrenceType: 'interval', recurrenceValue: 7,
+        recurrenceType: 'interval', recurrenceValue: 7, useRotation: false,
       };
 
       mockDb.select
@@ -367,13 +367,13 @@ describe('assignmentService', () => {
       const dueDate = new Date('2025-06-03');
       const existing = {
         id: 'a-1', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-1',
-        dueDate, completedAt: null, recurrenceType: 'weekday', recurrenceValue: 2,
+        dueDate, completedAt: null, recurrenceType: 'weekday', recurrenceValue: 2, useRotation: false,
       };
       const completed = { ...existing, completedAt: new Date() };
       const spawned = {
         id: 'a-2', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-1',
         dueDate: new Date('2025-06-10'), completedAt: null,
-        recurrenceType: 'weekday', recurrenceValue: 2,
+        recurrenceType: 'weekday', recurrenceValue: 2, useRotation: false,
       };
 
       mockDb.select
@@ -403,11 +403,11 @@ describe('assignmentService', () => {
       expect(mockDb.insert).not.toHaveBeenCalled();
     });
 
-    it('carries recurrence settings forward onto the spawned assignment', async () => {
+    it('carries recurrence settings and useRotation flag forward onto the spawned assignment', async () => {
       const dueDate = new Date('2025-01-01');
       const existing = {
         id: 'a-1', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-1',
-        dueDate, completedAt: null, recurrenceType: 'interval', recurrenceValue: 14,
+        dueDate, completedAt: null, recurrenceType: 'interval', recurrenceValue: 14, useRotation: false,
       };
       const completed = { ...existing, completedAt: new Date() };
       const spawned = { id: 'a-2', ...completed };
@@ -424,13 +424,14 @@ describe('assignmentService', () => {
       const insertedValues = mockDb.insert.mock.results[0].value.values.mock.calls[0][0];
       expect(insertedValues.recurrenceType).toBe('interval');
       expect(insertedValues.recurrenceValue).toBe(14);
+      expect(insertedValues.useRotation).toBe(false);
     });
 
-    it('keeps the same memberId on the spawned assignment (rotation not re-run)', async () => {
+    it('keeps the same memberId when useRotation is false', async () => {
       const dueDate = new Date('2025-03-01');
       const existing = {
         id: 'a-1', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-1',
-        dueDate, completedAt: null, recurrenceType: 'interval', recurrenceValue: 7,
+        dueDate, completedAt: null, recurrenceType: 'interval', recurrenceValue: 7, useRotation: false,
       };
       const completed = { ...existing, completedAt: new Date() };
       const spawned = { id: 'a-2', ...completed };
@@ -446,6 +447,58 @@ describe('assignmentService', () => {
 
       const insertedValues = mockDb.insert.mock.results[0].value.values.mock.calls[0][0];
       expect(insertedValues.memberId).toBe('m-1');
+      // getNextAssignee should NOT have been called (no extra select queries beyond the 3 expected)
+      expect(mockDb.select).toHaveBeenCalledTimes(3);
+    });
+
+    it('rotates to the next member on spawn when useRotation is true', async () => {
+      const dueDate = new Date('2025-03-01');
+      const existing = {
+        id: 'a-1', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-1',
+        dueDate, completedAt: null, recurrenceType: 'interval', recurrenceValue: 7, useRotation: true,
+      };
+      const completed = { ...existing, completedAt: new Date() };
+      const spawned = { id: 'a-2', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-2', useRotation: true };
+      const members = [{ id: 'm-1', displayName: 'Alice' }, { id: 'm-2', displayName: 'Bob' }];
+
+      mockDb.select
+        .mockReturnValueOnce(makeChain([existing]))    // updateAssignment: getAssignmentById
+        .mockReturnValueOnce(makeChain([completed]))   // updateAssignment: post-update fetch
+        .mockReturnValueOnce(makeChain(members))       // getNextAssignee: members query
+        .mockReturnValueOnce(makeChain([{ memberId: 'm-1' }])) // getNextAssignee: last assignment query
+        .mockReturnValueOnce(makeChain([spawned]));    // createAssignment: getAssignmentById
+      mockDb.update.mockReturnValue(makeChain(undefined));
+      mockDb.insert.mockReturnValue(makeChain(undefined));
+
+      await service.markComplete('house-1', 'a-1');
+
+      const insertedValues = mockDb.insert.mock.results[0].value.values.mock.calls[0][0];
+      // m-1 was last assigned, so next should be m-2 (Bob)
+      expect(insertedValues.memberId).toBe('m-2');
+      expect(insertedValues.useRotation).toBe(true);
+    });
+
+    it('preserves the current memberId as fallback when getNextAssignee returns null (useRotation + no members)', async () => {
+      const dueDate = new Date('2025-03-01');
+      const existing = {
+        id: 'a-1', houseId: 'house-1', choreTypeId: 'ct-1', memberId: 'm-1',
+        dueDate, completedAt: null, recurrenceType: 'interval', recurrenceValue: 7, useRotation: true,
+      };
+      const completed = { ...existing, completedAt: new Date() };
+      const spawned = { id: 'a-2', ...completed };
+
+      mockDb.select
+        .mockReturnValueOnce(makeChain([existing]))
+        .mockReturnValueOnce(makeChain([completed]))
+        .mockReturnValueOnce(makeChain([]))   // getNextAssignee: no members → returns null
+        .mockReturnValueOnce(makeChain([spawned]));
+      mockDb.update.mockReturnValue(makeChain(undefined));
+      mockDb.insert.mockReturnValue(makeChain(undefined));
+
+      await service.markComplete('house-1', 'a-1');
+
+      const insertedValues = mockDb.insert.mock.results[0].value.values.mock.calls[0][0];
+      expect(insertedValues.memberId).toBe('m-1'); // falls back to original
     });
   });
 
@@ -504,6 +557,61 @@ describe('assignmentService', () => {
       const original = from.getTime();
       service.nextRecurringDueDate(from, 'interval', 7);
       expect(from.getTime()).toBe(original);
+    });
+
+    // --- Security: invalid recurrenceValue must never produce an infinite loop ---
+
+    it('returns null for weekday value 7 (out of range — would loop forever without guard)', () => {
+      const from = new Date('2025-06-03');
+      expect(service.nextRecurringDueDate(from, 'weekday', 7)).toBeNull();
+    });
+
+    it('returns null for negative weekday value', () => {
+      const from = new Date('2025-06-03');
+      expect(service.nextRecurringDueDate(from, 'weekday', -1)).toBeNull();
+    });
+
+    it('returns null for a non-integer weekday value (float)', () => {
+      const from = new Date('2025-06-03');
+      expect(service.nextRecurringDueDate(from, 'weekday', 2.5)).toBeNull();
+    });
+
+    it('returns null for NaN weekday value', () => {
+      const from = new Date('2025-06-03');
+      expect(service.nextRecurringDueDate(from, 'weekday', NaN)).toBeNull();
+    });
+
+    it('returns null for interval value of 0', () => {
+      const from = new Date('2025-06-01');
+      expect(service.nextRecurringDueDate(from, 'interval', 0)).toBeNull();
+    });
+
+    it('returns null for negative interval value', () => {
+      const from = new Date('2025-06-01');
+      expect(service.nextRecurringDueDate(from, 'interval', -7)).toBeNull();
+    });
+
+    it('returns null for interval value exceeding 365', () => {
+      const from = new Date('2025-06-01');
+      expect(service.nextRecurringDueDate(from, 'interval', 366)).toBeNull();
+    });
+
+    it('accepts boundary weekday values 0 (Sunday) and 6 (Saturday)', () => {
+      // June 1 2025 is a Sunday (day 0)
+      const from = new Date('2025-06-01');
+      const nextSun = service.nextRecurringDueDate(from, 'weekday', 0);
+      expect(nextSun).not.toBeNull();
+      expect(nextSun.getUTCDay()).toBe(0);
+
+      const nextSat = service.nextRecurringDueDate(from, 'weekday', 6);
+      expect(nextSat).not.toBeNull();
+      expect(nextSat.getUTCDay()).toBe(6);
+    });
+
+    it('accepts boundary interval values 1 and 365', () => {
+      const from = new Date('2025-06-01');
+      expect(service.nextRecurringDueDate(from, 'interval', 1)).not.toBeNull();
+      expect(service.nextRecurringDueDate(from, 'interval', 365)).not.toBeNull();
     });
   });
 
@@ -565,6 +673,71 @@ describe('assignmentService', () => {
       expect(insertChain.values).toHaveBeenCalledWith(
         expect.objectContaining({ recurrenceType: 'weekday', recurrenceValue: 3 })
       );
+    });
+
+    // --- Security: recurrence validation must reject malicious inputs ---
+
+    it('throws for an unrecognised recurrenceType', async () => {
+      await expect(
+        service.createAssignment('house-1', {
+          choreTypeId: 'c-1', memberId: 'm-1',
+          recurrenceType: 'daily', recurrenceValue: 1,
+        })
+      ).rejects.toThrow("recurrenceType must be 'interval' or 'weekday'");
+    });
+
+    it('throws for weekday recurrenceValue of 7 (out-of-range — infinite-loop vector)', async () => {
+      await expect(
+        service.createAssignment('house-1', {
+          choreTypeId: 'c-1', memberId: 'm-1',
+          recurrenceType: 'weekday', recurrenceValue: 7,
+        })
+      ).rejects.toThrow('recurrenceValue must be a whole number between 0 and 6');
+    });
+
+    it('throws for negative weekday recurrenceValue', async () => {
+      await expect(
+        service.createAssignment('house-1', {
+          choreTypeId: 'c-1', memberId: 'm-1',
+          recurrenceType: 'weekday', recurrenceValue: -1,
+        })
+      ).rejects.toThrow('recurrenceValue must be a whole number between 0 and 6');
+    });
+
+    it('throws for float weekday recurrenceValue', async () => {
+      await expect(
+        service.createAssignment('house-1', {
+          choreTypeId: 'c-1', memberId: 'm-1',
+          recurrenceType: 'weekday', recurrenceValue: 2.5,
+        })
+      ).rejects.toThrow('recurrenceValue must be a whole number between 0 and 6');
+    });
+
+    it('throws for interval recurrenceValue of 0', async () => {
+      await expect(
+        service.createAssignment('house-1', {
+          choreTypeId: 'c-1', memberId: 'm-1',
+          recurrenceType: 'interval', recurrenceValue: 0,
+        })
+      ).rejects.toThrow('recurrenceValue must be a whole number between 1 and 365');
+    });
+
+    it('throws for interval recurrenceValue exceeding 365', async () => {
+      await expect(
+        service.createAssignment('house-1', {
+          choreTypeId: 'c-1', memberId: 'm-1',
+          recurrenceType: 'interval', recurrenceValue: 366,
+        })
+      ).rejects.toThrow('recurrenceValue must be a whole number between 1 and 365');
+    });
+
+    it('throws for negative interval recurrenceValue', async () => {
+      await expect(
+        service.createAssignment('house-1', {
+          choreTypeId: 'c-1', memberId: 'm-1',
+          recurrenceType: 'interval', recurrenceValue: -7,
+        })
+      ).rejects.toThrow('recurrenceValue must be a whole number between 1 and 365');
     });
   });
 });
