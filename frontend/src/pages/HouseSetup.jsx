@@ -29,7 +29,7 @@ export function HouseSetup() {
     setError('');
     setIsSubmitting(true);
     try {
-      await api.joinHouse({ inviteCode: inviteCode.trim().toUpperCase() });
+      await api.joinHouse({ inviteCode: inviteCode.trim() });
       await refreshHouses();
     } catch (err) {
       setError(err.message || 'Failed to join house');
@@ -87,8 +87,9 @@ export function HouseSetup() {
               <input
                 type="text"
                 value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                placeholder="e.g. ABC123"
+                inputMode="numeric"
+                onChange={(e) => setInviteCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="e.g. 123456"
                 maxLength={6}
                 required
                 autoFocus

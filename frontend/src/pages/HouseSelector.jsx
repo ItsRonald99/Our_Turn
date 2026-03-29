@@ -64,7 +64,7 @@ export function HouseSelector() {
     setError('');
     setIsSubmitting(true);
     try {
-      const res = await api.joinHouse({ inviteCode: inviteCode.trim().toUpperCase() });
+      const res = await api.joinHouse({ inviteCode: inviteCode.trim() });
       const joinedHouseId = res.data.house.id;
       await refreshHouses();
       setActiveHouseId(joinedHouseId);
@@ -193,9 +193,10 @@ export function HouseSelector() {
                   Invite code
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. ABC123"
+                    onChange={(e) => setInviteCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="e.g. 123456"
                     maxLength={6}
                     required
                     autoFocus

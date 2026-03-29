@@ -8,8 +8,26 @@ import { requireHouseMember } from '../middleware/requireHouseMember.js';
 
 const router = Router();
 
+const MAX_CODE_ATTEMPTS = 10;
+
+// Returns a random zero-padded 6-digit numeric string, e.g. '007342' or '982451'.
 function generateInviteCode() {
-  return randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase();
+  return Math.floor(Math.random() * 1_000_000).toString().padStart(6, '0');
+}
+
+// Generates a code that does not already exist in the houses table.
+// Retries up to MAX_CODE_ATTEMPTS times before giving up.
+async function generateUniqueInviteCode(db) {
+  for (let i = 0; i < MAX_CODE_ATTEMPTS; i++) {
+    const code = generateInviteCode();
+    const [existing] = await db
+      .select({ id: houses.id })
+      .from(houses)
+      .where(eq(houses.inviteCode, code))
+      .limit(1);
+    if (!existing) return code;
+  }
+  throw new Error('Could not generate a unique invite code. Please try again.');
 }
 
 /** GET /houses — list the authenticated user's houses */
@@ -41,7 +59,7 @@ router.post('/', requireAuth, async (req, res) => {
     }
 
     const houseId = randomUUID();
-    const inviteCode = generateInviteCode();
+    const inviteCode = await generateUniqueInviteCode(db);
     await db.insert(houses).values({
       id: houseId,
       name: name.trim(),
@@ -74,11 +92,15 @@ router.post('/join', requireAuth, async (req, res) => {
     if (!inviteCode || typeof inviteCode !== 'string') {
       return res.status(400).json({ error: 'inviteCode is required' });
     }
+    const code = inviteCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({ error: 'Invite code must be exactly 6 digits' });
+    }
 
     const [house] = await db
       .select()
       .from(houses)
-      .where(eq(houses.inviteCode, inviteCode.toUpperCase().trim()))
+      .where(eq(houses.inviteCode, code))
       .limit(1);
     if (!house) return res.status(404).json({ error: 'Invalid invite code' });
 

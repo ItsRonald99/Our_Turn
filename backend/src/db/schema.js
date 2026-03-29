@@ -19,7 +19,7 @@ export const refreshTokens = sqliteTable('refresh_tokens', {
 export const houses = sqliteTable('houses', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  inviteCode: text('invite_code'),
+  inviteCode: text('invite_code').unique(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 

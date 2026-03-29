@@ -17,6 +17,16 @@ export function Home() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  const handleCopyCode = () => {
+    const code = activeHouse?.inviteCode;
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
+    });
+  };
 
   const handleDeleteHouse = async () => {
     setIsDeleting(true);
@@ -69,6 +79,17 @@ export function Home() {
               ✕
             </button>
           </div>
+          {activeHouse?.inviteCode && (
+            <button
+              type="button"
+              className="page-home__invite-code"
+              onClick={handleCopyCode}
+              title="Click to copy invite code"
+            >
+              Invite code: <span className="page-home__invite-code-value">{activeHouse.inviteCode}</span>
+              <span className="page-home__invite-code-hint">{codeCopied ? 'Copied!' : 'Copy'}</span>
+            </button>
+          )}
           {showDeleteConfirm && (
             <div className="page-home__delete-confirm">
               <span>Delete &ldquo;{activeHouse?.name}&rdquo;? This will remove all chores and members.</span>

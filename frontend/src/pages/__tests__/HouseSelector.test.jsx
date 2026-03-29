@@ -194,7 +194,7 @@ describe('HouseSelector', () => {
       const user = userEvent.setup();
       renderSelector();
       await user.click(screen.getByRole('button', { name: 'Join' }));
-      expect(screen.getByPlaceholderText(/e.g. ABC123/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/e.g. 123456/i)).toBeInTheDocument();
     });
 
     it('submits the invite code and navigates on success', async () => {
@@ -205,34 +205,34 @@ describe('HouseSelector', () => {
       const user = userEvent.setup();
       renderSelector();
       await user.click(screen.getByRole('button', { name: 'Join' }));
-      await user.type(screen.getByPlaceholderText(/e.g. ABC123/i), 'ABC123');
+      await user.type(screen.getByPlaceholderText(/e.g. 123456/i), '123456');
       await user.click(screen.getByRole('button', { name: /Join house/i }));
 
       await waitFor(() => {
-        expect(api.joinHouse).toHaveBeenCalledWith({ inviteCode: 'ABC123' });
+        expect(api.joinHouse).toHaveBeenCalledWith({ inviteCode: '123456' });
         expect(mockSetActiveHouseId).toHaveBeenCalledWith(joinedId);
         expect(mockNavigate).toHaveBeenCalledWith('/');
       });
     });
 
-    it('uppercases the invite code input automatically', async () => {
+    it('strips non-digit characters from the invite code input', async () => {
       const user = userEvent.setup();
       renderSelector();
       await user.click(screen.getByRole('button', { name: 'Join' }));
-      const input = screen.getByPlaceholderText(/e.g. ABC123/i);
-      await user.type(input, 'abc123');
-      expect(input.value).toBe('ABC123');
+      const input = screen.getByPlaceholderText(/e.g. 123456/i);
+      await user.type(input, 'abc123def');
+      expect(input.value).toBe('123');
     });
 
-    it('disables the Join button until 6 characters are entered', async () => {
+    it('disables the Join button until 6 digits are entered', async () => {
       const user = userEvent.setup();
       renderSelector();
       await user.click(screen.getByRole('button', { name: 'Join' }));
       const joinBtn = screen.getByRole('button', { name: /Join house/i });
       expect(joinBtn).toBeDisabled();
-      await user.type(screen.getByPlaceholderText(/e.g. ABC123/i), 'ABC12');
+      await user.type(screen.getByPlaceholderText(/e.g. 123456/i), '12345');
       expect(joinBtn).toBeDisabled();
-      await user.type(screen.getByPlaceholderText(/e.g. ABC123/i), '3');
+      await user.type(screen.getByPlaceholderText(/e.g. 123456/i), '6');
       expect(joinBtn).not.toBeDisabled();
     });
 
@@ -242,7 +242,7 @@ describe('HouseSelector', () => {
       const user = userEvent.setup();
       renderSelector();
       await user.click(screen.getByRole('button', { name: 'Join' }));
-      await user.type(screen.getByPlaceholderText(/e.g. ABC123/i), 'XXXXXX');
+      await user.type(screen.getByPlaceholderText(/e.g. 123456/i), '000000');
       await user.click(screen.getByRole('button', { name: /Join house/i }));
 
       await waitFor(() => {

@@ -755,6 +755,44 @@ button:disabled {
   font-size: 0.875rem;
 }
 
+/* ─── Invite code badge ────────────────────────────────── */
+
+.page-home__invite-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.2rem 0.6rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-top: 0.35rem;
+}
+
+.page-home__invite-code:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.page-home__invite-code-value {
+  font-family: monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: var(--text);
+}
+
+.page-home__invite-code-hint {
+  font-size: 0.7rem;
+  color: var(--accent);
+  opacity: 0.75;
+}
+
+.page-home__invite-code:hover .page-home__invite-code-hint {
+  opacity: 1;
+}
+
 /* ─── House switcher in dashboard header ────────────────── */
 
 .page-home__house-row {
