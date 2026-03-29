@@ -13,7 +13,19 @@ vi.mock('../../middleware/requireAuth.js', () => ({
   requireAuth: (_req, _res, next) => next(),
 }));
 vi.mock('../../middleware/requireHouseMember.js', () => ({
-  requireHouseMember: (_req, _res, next) => next(),
+  requireHouseMember: (req, _res, next) => {
+    // Default: treat the test user as an owner unless the test overrides req.member
+    if (!req.member) req.member = { role: 'owner' };
+    next();
+  },
+}));
+vi.mock('../../middleware/requireHouseOwner.js', () => ({
+  requireHouseOwner: (req, res, next) => {
+    if (req.member?.role !== 'owner') {
+      return res.status(403).json({ error: 'Forbidden: only the house owner can perform this action' });
+    }
+    next();
+  },
 }));
 
 import { getDbSync } from '../../db/client.js';
@@ -72,13 +84,15 @@ describe('POST /houses', () => {
   });
 
   it('creates a house and auto-joins the creator', async () => {
+    const creatorUser = { id: 'test-user-id', email: 'test@test.com', displayName: 'Test User' };
     const house = { id: 'h-new', name: 'My House', inviteCode: '654321', createdAt: new Date() };
-    const member = { id: 'm-new', houseId: 'h-new', displayName: 'test@test.com', userId: 'u-1' };
+    const member = { id: 'm-new', houseId: 'h-new', displayName: 'Test User', userId: 'test-user-id' };
     mockDb.insert.mockReturnValue(makeChain(undefined));
     mockDb.select
-      .mockReturnValueOnce(makeChain([]))        // uniqueness check — code is free
-      .mockReturnValueOnce(makeChain([house]))   // fetch house after insert
-      .mockReturnValueOnce(makeChain([member])); // fetch member after insert
+      .mockReturnValueOnce(makeChain([creatorUser])) // fetch creator user record
+      .mockReturnValueOnce(makeChain([]))             // uniqueness check — code is free
+      .mockReturnValueOnce(makeChain([house]))        // fetch house after insert
+      .mockReturnValueOnce(makeChain([member]));      // fetch member after insert
 
     const res = await request(createApp())
       .post('/houses')
@@ -89,12 +103,49 @@ describe('POST /houses', () => {
     expect(res.body.data.member).toBeDefined();
   });
 
-  it('generates a 6-digit zero-padded numeric invite code', async () => {
-    const house = { id: 'h-new', name: 'My House', inviteCode: '007342', createdAt: new Date() };
-    const member = { id: 'm-new', houseId: 'h-new', displayName: 'test@test.com', userId: 'u-1' };
+  it('uses the user displayName (not email) for the creator member entry', async () => {
+    const creatorUser = { id: 'test-user-id', email: 'test@test.com', displayName: 'Test User' };
+    const house = { id: 'h-new', name: 'My House', inviteCode: '654321', createdAt: new Date() };
+    const member = { id: 'm-new', houseId: 'h-new', displayName: 'Test User', userId: 'test-user-id' };
     mockDb.insert.mockReturnValue(makeChain(undefined));
     mockDb.select
-      .mockReturnValueOnce(makeChain([]))       // uniqueness check
+      .mockReturnValueOnce(makeChain([creatorUser]))
+      .mockReturnValueOnce(makeChain([]))
+      .mockReturnValueOnce(makeChain([house]))
+      .mockReturnValueOnce(makeChain([member]));
+
+    await request(createApp()).post('/houses').send({ name: 'My House' });
+
+    // Both inserts share the same chain; calls[0] = house insert, calls[1] = member insert
+    const insertedMember = mockDb.insert.mock.results[0].value.values.mock.calls[1][0];
+    expect(insertedMember.displayName).toBe('Test User');
+    expect(insertedMember.role).toBe('owner');
+  });
+
+  it('falls back to email when user record is not found', async () => {
+    const house = { id: 'h-new', name: 'My House', inviteCode: '654321', createdAt: new Date() };
+    const member = { id: 'm-new', houseId: 'h-new', displayName: 'test@test.com', userId: 'test-user-id' };
+    mockDb.insert.mockReturnValue(makeChain(undefined));
+    mockDb.select
+      .mockReturnValueOnce(makeChain([]))        // user not found
+      .mockReturnValueOnce(makeChain([]))        // uniqueness check — code is free
+      .mockReturnValueOnce(makeChain([house]))
+      .mockReturnValueOnce(makeChain([member]));
+
+    await request(createApp()).post('/houses').send({ name: 'My House' });
+
+    const insertedMember = mockDb.insert.mock.results[0].value.values.mock.calls[1][0];
+    expect(insertedMember.displayName).toBe('test@test.com');
+  });
+
+  it('generates a 6-digit zero-padded numeric invite code', async () => {
+    const creatorUser = { id: 'test-user-id', email: 'test@test.com', displayName: 'Test User' };
+    const house = { id: 'h-new', name: 'My House', inviteCode: '007342', createdAt: new Date() };
+    const member = { id: 'm-new', houseId: 'h-new', displayName: 'Test User', userId: 'test-user-id' };
+    mockDb.insert.mockReturnValue(makeChain(undefined));
+    mockDb.select
+      .mockReturnValueOnce(makeChain([creatorUser])) // fetch creator
+      .mockReturnValueOnce(makeChain([]))             // uniqueness check
       .mockReturnValueOnce(makeChain([house]))
       .mockReturnValueOnce(makeChain([member]));
 
@@ -105,10 +156,12 @@ describe('POST /houses', () => {
   });
 
   it('retries code generation on collision and still creates the house', async () => {
+    const creatorUser = { id: 'test-user-id', email: 'test@test.com', displayName: 'Test User' };
     const house = { id: 'h-new', name: 'My House', inviteCode: '999999', createdAt: new Date() };
-    const member = { id: 'm-new', houseId: 'h-new', displayName: 'test@test.com', userId: 'u-1' };
+    const member = { id: 'm-new', houseId: 'h-new', displayName: 'Test User', userId: 'test-user-id' };
     mockDb.insert.mockReturnValue(makeChain(undefined));
     mockDb.select
+      .mockReturnValueOnce(makeChain([creatorUser]))               // fetch creator
       .mockReturnValueOnce(makeChain([{ id: 'existing-house' }])) // first attempt: collision
       .mockReturnValueOnce(makeChain([]))                          // second attempt: free
       .mockReturnValueOnce(makeChain([house]))                     // fetch house
@@ -139,11 +192,13 @@ describe('POST /houses/join', () => {
 
   it('joins house with a valid 6-digit invite code', async () => {
     const house = { id: 'h-1', name: 'Our House', inviteCode: '123456', createdAt: new Date() };
-    const member = { id: 'm-new', houseId: 'h-1', displayName: 'test@test.com', userId: 'u-1' };
+    const joinerUser = { id: 'test-user-id', email: 'test@test.com', displayName: 'Test User' };
+    const member = { id: 'm-new', houseId: 'h-1', displayName: 'Test User', userId: 'test-user-id' };
     mockDb.select
-      .mockReturnValueOnce(makeChain([house]))   // find house by invite code
-      .mockReturnValueOnce(makeChain([]))        // existing membership check
-      .mockReturnValueOnce(makeChain([member])); // fetch created member
+      .mockReturnValueOnce(makeChain([house]))      // find house by invite code
+      .mockReturnValueOnce(makeChain([]))           // existing membership check
+      .mockReturnValueOnce(makeChain([joinerUser])) // fetch joiner user record
+      .mockReturnValueOnce(makeChain([member]));    // fetch created member
     mockDb.insert.mockReturnValue(makeChain(undefined));
 
     const res = await request(createApp())
@@ -152,6 +207,39 @@ describe('POST /houses/join', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.data.house.id).toBe('h-1');
+  });
+
+  it('uses the user displayName (not email) for the joined member entry', async () => {
+    const house = { id: 'h-1', name: 'Our House', inviteCode: '123456', createdAt: new Date() };
+    const joinerUser = { id: 'test-user-id', email: 'test@test.com', displayName: 'Test User' };
+    const member = { id: 'm-new', houseId: 'h-1', displayName: 'Test User', userId: 'test-user-id' };
+    mockDb.select
+      .mockReturnValueOnce(makeChain([house]))
+      .mockReturnValueOnce(makeChain([]))
+      .mockReturnValueOnce(makeChain([joinerUser]))
+      .mockReturnValueOnce(makeChain([member]));
+    mockDb.insert.mockReturnValue(makeChain(undefined));
+
+    await request(createApp()).post('/houses/join').send({ inviteCode: '123456' });
+
+    const insertedMember = mockDb.insert.mock.results[0].value.values.mock.calls[0][0];
+    expect(insertedMember.displayName).toBe('Test User');
+  });
+
+  it('falls back to email when user record is not found on join', async () => {
+    const house = { id: 'h-1', name: 'Our House', inviteCode: '123456', createdAt: new Date() };
+    const member = { id: 'm-new', houseId: 'h-1', displayName: 'test@test.com', userId: 'test-user-id' };
+    mockDb.select
+      .mockReturnValueOnce(makeChain([house]))
+      .mockReturnValueOnce(makeChain([]))   // membership check
+      .mockReturnValueOnce(makeChain([]))   // user not found
+      .mockReturnValueOnce(makeChain([member]));
+    mockDb.insert.mockReturnValue(makeChain(undefined));
+
+    await request(createApp()).post('/houses/join').send({ inviteCode: '123456' });
+
+    const insertedMember = mockDb.insert.mock.results[0].value.values.mock.calls[0][0];
+    expect(insertedMember.displayName).toBe('test@test.com');
   });
 
   it('returns 404 for a valid-format code that does not match any house', async () => {
@@ -264,7 +352,7 @@ describe('DELETE /houses/:houseId', () => {
     getDbSync.mockReturnValue(mockDb);
   });
 
-  it('returns 204 on successful delete', async () => {
+  it('returns 204 on successful delete when caller is the owner', async () => {
     mockDb.delete.mockReturnValue(makeChain(undefined));
 
     const res = await request(createApp()).delete('/houses/house-1');
@@ -272,7 +360,24 @@ describe('DELETE /houses/:houseId', () => {
     expect(res.body).toEqual({});
   });
 
-  it('calls db.delete with the correct houseId', async () => {
+  it('returns 403 when the caller is a non-owner member', async () => {
+    // Override the mock so requireHouseMember attaches a 'member' role
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.user = { userId: 'test-user-id', email: 'test@test.com' };
+      req.member = { role: 'member' };
+      next();
+    });
+    app.use('/houses', housesRouter);
+
+    const res = await request(app).delete('/houses/house-1');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/only the house owner/i);
+    expect(mockDb.delete).not.toHaveBeenCalled();
+  });
+
+  it('calls db.delete with the correct houseId when caller is the owner', async () => {
     mockDb.delete.mockReturnValue(makeChain(undefined));
 
     await request(createApp()).delete('/houses/house-1');

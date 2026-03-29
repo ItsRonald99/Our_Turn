@@ -1,16 +1,33 @@
 import { useState } from 'react';
-import { useMembers, useCreateMember, useDeleteMember } from '../hooks/useMembers';
+import { useMembers, useDeleteMember } from '../hooks/useMembers';
+import { useInviteUser } from '../hooks/useInvitations';
 
 export function MemberList({ houseId }) {
   const { data: members = [], isLoading, error } = useMembers(houseId);
-  const createMember = useCreateMember(houseId);
   const deleteMember = useDeleteMember(houseId);
-  const [name, setName] = useState('');
+  const inviteUser = useInviteUser(houseId);
+  const [email, setEmail] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState('');
+  const [inviteError, setInviteError] = useState('');
 
-  const handleAdd = (e) => {
+  const handleInvite = (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    createMember.mutate({ displayName: name.trim() }, { onSuccess: () => setName('') });
+    if (!email.trim()) return;
+    setInviteSuccess('');
+    setInviteError('');
+    inviteUser.mutate(
+      { email: email.trim().toLowerCase() },
+      {
+        onSuccess: () => {
+          setEmail('');
+          setInviteSuccess('Invitation sent!');
+          setTimeout(() => setInviteSuccess(''), 3000);
+        },
+        onError: (err) => {
+          setInviteError(err.message || 'Failed to send invitation');
+        },
+      }
+    );
   };
 
   if (error) return <p className="error">Failed to load members: {error.message}</p>;
@@ -35,18 +52,20 @@ export function MemberList({ houseId }) {
           </li>
         ))}
       </ul>
-      <form onSubmit={handleAdd} className="member-list__form">
+      <form onSubmit={handleInvite} className="member-list__form">
         <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Display name"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email address"
           className="member-list__input"
         />
-        <button type="submit" disabled={createMember.isLoading || !name.trim()}>
-          Add
+        <button type="submit" disabled={inviteUser.isLoading || !email.trim()}>
+          {inviteUser.isLoading ? 'Sending…' : 'Invite'}
         </button>
       </form>
+      {inviteSuccess && <p className="member-list__success">{inviteSuccess}</p>}
+      {inviteError && <p className="member-list__error">{inviteError}</p>}
     </section>
   );
 }

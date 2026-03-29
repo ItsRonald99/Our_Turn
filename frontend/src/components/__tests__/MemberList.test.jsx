@@ -5,28 +5,38 @@ import { MemberList } from '../MemberList';
 
 vi.mock('../../hooks/useMembers', () => ({
   useMembers: vi.fn(),
-  useCreateMember: vi.fn(),
   useDeleteMember: vi.fn(),
 }));
 
-import { useMembers, useCreateMember, useDeleteMember } from '../../hooks/useMembers';
+vi.mock('../../hooks/useInvitations', () => ({
+  useInviteUser: vi.fn(),
+}));
+
+import { useMembers, useDeleteMember } from '../../hooks/useMembers';
+import { useInviteUser } from '../../hooks/useInvitations';
 
 const makeMember = (id, displayName) => ({ id, houseId: 'house-1', displayName, userId: null });
 
-const defaultCreateMutate = vi.fn();
+const defaultInviteMutate = vi.fn();
 const defaultDeleteMutate = vi.fn();
 
-function setupMocks({ members = [], isLoading = false, error = null } = {}) {
+function setupMocks({ members = [], isLoading = false, error = null, inviteLoading = false } = {}) {
   useMembers.mockReturnValue({ data: members, isLoading, error });
-  useCreateMember.mockReturnValue({ mutate: defaultCreateMutate, isLoading: false });
   useDeleteMember.mockReturnValue({ mutate: defaultDeleteMutate, isLoading: false });
+  useInviteUser.mockReturnValue({ mutate: defaultInviteMutate, isLoading: inviteLoading });
 }
 
 describe('MemberList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    defaultCreateMutate.mockReset();
+    defaultInviteMutate.mockReset();
     defaultDeleteMutate.mockReset();
+    setupMocks();
+  });
+
+  it('renders the "Housemates" heading', () => {
+    render(<MemberList houseId="house-1" />);
+    expect(screen.getByRole('heading', { name: /Housemates/i })).toBeInTheDocument();
   });
 
   it('shows a loading state', () => {
@@ -51,7 +61,6 @@ describe('MemberList', () => {
   });
 
   it('renders an empty list when there are no members', () => {
-    setupMocks({ members: [] });
     render(<MemberList houseId="house-1" />);
     expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
   });
@@ -72,58 +81,74 @@ describe('MemberList', () => {
     expect(defaultDeleteMutate).toHaveBeenCalledWith('m-1');
   });
 
-  it('renders the add member form', () => {
-    setupMocks();
-    render(<MemberList houseId="house-1" />);
-    expect(screen.getByPlaceholderText('Display name')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Add/i })).toBeInTheDocument();
-  });
+  describe('invite form', () => {
+    it('renders an email input and Invite button', () => {
+      render(<MemberList houseId="house-1" />);
+      expect(screen.getByPlaceholderText('Email address')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Invite/i })).toBeInTheDocument();
+    });
 
-  it('keeps the Add button disabled when the input is empty', () => {
-    setupMocks();
-    render(<MemberList houseId="house-1" />);
-    expect(screen.getByRole('button', { name: /Add/i })).toBeDisabled();
-  });
+    it('keeps the Invite button disabled when the input is empty', () => {
+      render(<MemberList houseId="house-1" />);
+      expect(screen.getByRole('button', { name: /Invite/i })).toBeDisabled();
+    });
 
-  it('enables the Add button when the user types a name', async () => {
-    const user = userEvent.setup();
-    setupMocks();
-    render(<MemberList houseId="house-1" />);
-    await user.type(screen.getByPlaceholderText('Display name'), 'Charlie');
-    expect(screen.getByRole('button', { name: /Add/i })).not.toBeDisabled();
-  });
+    it('enables the Invite button when the user types an email', async () => {
+      const user = userEvent.setup();
+      render(<MemberList houseId="house-1" />);
+      await user.type(screen.getByPlaceholderText('Email address'), 'alice@test.com');
+      expect(screen.getByRole('button', { name: /Invite/i })).not.toBeDisabled();
+    });
 
-  it('calls createMember.mutate when the form is submitted', async () => {
-    const user = userEvent.setup();
-    setupMocks();
-    render(<MemberList houseId="house-1" />);
-    await user.type(screen.getByPlaceholderText('Display name'), 'Charlie');
-    await user.click(screen.getByRole('button', { name: /Add/i }));
-    expect(defaultCreateMutate).toHaveBeenCalledWith(
-      { displayName: 'Charlie' },
-      expect.any(Object)
-    );
-  });
+    it('calls inviteUser.mutate with lowercased email on submit', async () => {
+      const user = userEvent.setup();
+      render(<MemberList houseId="house-1" />);
+      await user.type(screen.getByPlaceholderText('Email address'), 'Alice@Test.com');
+      await user.click(screen.getByRole('button', { name: /Invite/i }));
+      expect(defaultInviteMutate).toHaveBeenCalledWith(
+        { email: 'alice@test.com' },
+        expect.any(Object)
+      );
+    });
 
-  it('does not submit the form when the input is only whitespace', async () => {
-    const user = userEvent.setup();
-    setupMocks();
-    render(<MemberList houseId="house-1" />);
-    await user.type(screen.getByPlaceholderText('Display name'), '   ');
-    // Button stays disabled for whitespace-only input
-    expect(screen.getByRole('button', { name: /Add/i })).toBeDisabled();
-  });
+    it('does not submit when the input is whitespace only', async () => {
+      const user = userEvent.setup();
+      render(<MemberList houseId="house-1" />);
+      await user.type(screen.getByPlaceholderText('Email address'), '  ');
+      // button stays disabled for whitespace-only email
+      expect(screen.getByRole('button', { name: /Invite/i })).toBeDisabled();
+      expect(defaultInviteMutate).not.toHaveBeenCalled();
+    });
 
-  it('disables the Add button while the create mutation is loading', () => {
-    setupMocks();
-    useCreateMember.mockReturnValue({ mutate: defaultCreateMutate, isLoading: true });
-    render(<MemberList houseId="house-1" />);
-    expect(screen.getByRole('button', { name: /Add/i })).toBeDisabled();
-  });
+    it('shows "Invitation sent!" and clears the input on success', async () => {
+      const user = userEvent.setup();
+      defaultInviteMutate.mockImplementation((_body, { onSuccess }) => onSuccess());
+      render(<MemberList houseId="house-1" />);
+      await user.type(screen.getByPlaceholderText('Email address'), 'alice@test.com');
+      await user.click(screen.getByRole('button', { name: /Invite/i }));
+      await waitFor(() => {
+        expect(screen.getByText('Invitation sent!')).toBeInTheDocument();
+      });
+      expect(screen.getByPlaceholderText('Email address').value).toBe('');
+    });
 
-  it('renders the "Housemates" heading', () => {
-    setupMocks();
-    render(<MemberList houseId="house-1" />);
-    expect(screen.getByRole('heading', { name: /Housemates/i })).toBeInTheDocument();
+    it('shows an error message when the invite fails', async () => {
+      const user = userEvent.setup();
+      defaultInviteMutate.mockImplementation((_body, { onError }) =>
+        onError(new Error('No user found with that email'))
+      );
+      render(<MemberList houseId="house-1" />);
+      await user.type(screen.getByPlaceholderText('Email address'), 'ghost@test.com');
+      await user.click(screen.getByRole('button', { name: /Invite/i }));
+      await waitFor(() => {
+        expect(screen.getByText('No user found with that email')).toBeInTheDocument();
+      });
+    });
+
+    it('disables the Invite button while the invite mutation is in-flight', () => {
+      setupMocks({ inviteLoading: true });
+      render(<MemberList houseId="house-1" />);
+      expect(screen.getByRole('button', { name: /Sending/i })).toBeDisabled();
+    });
   });
 });

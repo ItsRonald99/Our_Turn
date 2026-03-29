@@ -7,6 +7,8 @@ import housesRouter from './routes/houses.js';
 import choreTypesRouter from './routes/choreTypes.js';
 import membersRouter from './routes/members.js';
 import assignmentsRouter from './routes/assignments.js';
+import houseInvitationsRouter from './routes/houseInvitations.js';
+import invitationsRouter from './routes/invitations.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,6 +23,8 @@ app.use('/houses', housesRouter);
 app.use('/houses/:houseId/chore-types', choreTypesRouter);
 app.use('/houses/:houseId/members', membersRouter);
 app.use('/houses/:houseId/assignments', assignmentsRouter);
+app.use('/houses/:houseId/invitations', houseInvitationsRouter);
+app.use('/invitations', invitationsRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { eq, inArray, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { getDbSync, saveDb } from '../db/client.js';
-import { houses, householdMembers } from '../db/schema.js';
+import { houses, householdMembers, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireHouseMember } from '../middleware/requireHouseMember.js';
+import { requireHouseOwner } from '../middleware/requireHouseOwner.js';
 
 const router = Router();
 
@@ -58,6 +59,8 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'name is required' });
     }
 
+    const [creator] = await db.select().from(users).where(eq(users.id, req.user.userId)).limit(1);
+
     const houseId = randomUUID();
     const inviteCode = await generateUniqueInviteCode(db);
     await db.insert(houses).values({
@@ -71,8 +74,9 @@ router.post('/', requireAuth, async (req, res) => {
     await db.insert(householdMembers).values({
       id: memberId,
       houseId,
-      displayName: req.user.email,
+      displayName: creator?.displayName ?? req.user.email,
       userId: req.user.userId,
+      role: 'owner',
     });
     saveDb();
 
@@ -113,11 +117,13 @@ router.post('/join', requireAuth, async (req, res) => {
       return res.status(409).json({ error: 'Already a member of this house' });
     }
 
+    const [joiner] = await db.select().from(users).where(eq(users.id, req.user.userId)).limit(1);
+
     const memberId = randomUUID();
     await db.insert(householdMembers).values({
       id: memberId,
       houseId: house.id,
-      displayName: req.user.email,
+      displayName: joiner?.displayName ?? req.user.email,
       userId: req.user.userId,
     });
     saveDb();
@@ -141,8 +147,8 @@ router.get('/:houseId', requireAuth, requireHouseMember, async (req, res) => {
   }
 });
 
-/** DELETE /houses/:houseId — delete a house and all its data (members only) */
-router.delete('/:houseId', requireAuth, requireHouseMember, async (req, res) => {
+/** DELETE /houses/:houseId — delete a house and all its data (owner only) */
+router.delete('/:houseId', requireAuth, requireHouseMember, requireHouseOwner, async (req, res) => {
   try {
     const db = getDbSync();
     await db.delete(houses).where(eq(houses.id, req.params.houseId));

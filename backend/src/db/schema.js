@@ -35,6 +35,7 @@ export const householdMembers = sqliteTable('household_members', {
   houseId: text('house_id').notNull().references(() => houses.id, { onDelete: 'cascade' }),
   displayName: text('display_name').notNull(),
   userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  role: text('role').notNull().default('member'), // 'owner' | 'member'
 });
 
 export const choreAssignments = sqliteTable('chore_assignments', {
@@ -47,4 +48,13 @@ export const choreAssignments = sqliteTable('chore_assignments', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(0),
   recurrenceType: text('recurrence_type'),   // null | 'interval' | 'weekday'
   recurrenceValue: integer('recurrence_value'), // 'interval': N days; 'weekday': 0-6 (JS getDay())
+});
+
+export const houseInvitations = sqliteTable('house_invitations', {
+  id: text('id').primaryKey(),
+  houseId: text('house_id').notNull().references(() => houses.id, { onDelete: 'cascade' }),
+  inviterUserId: text('inviter_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  inviteeUserId: text('invitee_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: text('status').notNull().default('pending'), // 'pending' | 'accepted' | 'declined'
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });

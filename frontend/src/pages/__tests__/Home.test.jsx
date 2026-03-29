@@ -36,6 +36,9 @@ vi.mock('../../components/MemberList', () => ({
 vi.mock('../../components/AddAssignmentForm', () => ({
   AddAssignmentForm: () => <div data-testid="add-assignment-form" />,
 }));
+vi.mock('../../components/NotificationBell', () => ({
+  NotificationBell: () => <div data-testid="notification-bell" />,
+}));
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {

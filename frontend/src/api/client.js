@@ -85,6 +85,13 @@ export const api = {
   deleteMember: (houseId, memberId) =>
     request(`/houses/${houseId}/members/${memberId}`, { method: 'DELETE' }),
 
+  // Invitations
+  getInvitations: () => request('/invitations'),
+  sendInvitation: (houseId, body) =>
+    request(`/houses/${houseId}/invitations`, { method: 'POST', body: JSON.stringify(body) }),
+  respondInvitation: (invitationId, body) =>
+    request(`/invitations/${invitationId}/respond`, { method: 'POST', body: JSON.stringify(body) }),
+
   // Assignments
   getAssignments: (houseId, params = {}) => {
     const q = new URLSearchParams(params).toString();

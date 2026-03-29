@@ -14,6 +14,7 @@ import { verifyAccessToken } from '../../services/authService.js';
 import { getDbSync } from '../../db/client.js';
 import { requireAuth } from '../requireAuth.js';
 import { requireHouseMember } from '../requireHouseMember.js';
+import { requireHouseOwner } from '../requireHouseOwner.js';
 import { makeChain, createMockDb } from '../../test/helpers.js';
 
 function mockRes() {
@@ -104,7 +105,7 @@ describe('requireHouseMember', () => {
   });
 
   it('sets req.member and calls next when user is a member', async () => {
-    const member = { id: 'm-1', houseId: 'h-1', userId: 'u-1', displayName: 'Alice' };
+    const member = { id: 'm-1', houseId: 'h-1', userId: 'u-1', displayName: 'Alice', role: 'member' };
     mockDb.select.mockReturnValue(makeChain([member]));
     const req = { params: { houseId: 'h-1' }, user: { userId: 'u-1' } };
     const res = mockRes();
@@ -113,5 +114,47 @@ describe('requireHouseMember', () => {
     await requireHouseMember(req, res, next);
     expect(next).toHaveBeenCalled();
     expect(req.member).toEqual(member);
+  });
+});
+
+describe('requireHouseOwner', () => {
+  it('calls next when req.member.role is "owner"', () => {
+    const req = { member: { role: 'owner' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    requireHouseOwner(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when req.member.role is "member"', () => {
+    const req = { member: { role: 'member' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    requireHouseOwner(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when req.member is undefined', () => {
+    const req = { member: undefined };
+    const res = mockRes();
+    const next = vi.fn();
+
+    requireHouseOwner(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when role is an unrecognised value', () => {
+    const req = { member: { role: 'moderator' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    requireHouseOwner(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
 });

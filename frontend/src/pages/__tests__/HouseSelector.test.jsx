@@ -15,6 +15,10 @@ vi.mock('../../api/client', () => ({
   },
 }));
 
+vi.mock('../../components/NotificationBell', () => ({
+  NotificationBell: () => <div data-testid="notification-bell" />,
+}));
+
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal();
@@ -248,6 +252,22 @@ describe('HouseSelector', () => {
       await waitFor(() => {
         expect(screen.getByText('Invalid invite code')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('notification bell', () => {
+    it('renders the notification bell in the user bar', () => {
+      setupAuth([]);
+      renderSelector();
+      expect(screen.getByTestId('notification-bell')).toBeInTheDocument();
+    });
+
+    it('notification bell is present alongside the user name and sign-out button', () => {
+      setupAuth([]);
+      renderSelector();
+      expect(screen.getByTestId('notification-bell')).toBeInTheDocument();
+      expect(screen.getByText('Alice')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
     });
   });
 

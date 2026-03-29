@@ -6,6 +6,7 @@ import { useMembers } from '../hooks/useMembers';
 import { ChoreList } from '../components/ChoreList';
 import { MemberList } from '../components/MemberList';
 import { AddAssignmentForm } from '../components/AddAssignmentForm';
+import { NotificationBell } from '../components/NotificationBell';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
@@ -114,6 +115,7 @@ export function Home() {
           {deleteError && <p className="page-home__delete-error">{deleteError}</p>}
         </div>
         <div className="page-home__user">
+          <NotificationBell />
           <span>{user?.displayName || user?.email}</span>
           <button type="button" className="page-home__logout" onClick={logout}>
             Sign out
