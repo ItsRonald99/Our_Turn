@@ -18,6 +18,13 @@ npm run db:migrate       # Run migrations manually (also runs automatically on b
 npm run db:generate      # Regenerate migration SQL from schema changes (run inside backend/)
 ```
 
+### Reminders
+```bash
+cd backend && npm run reminders:send           # Trigger the daily reminder job once (respects same-day dedup)
+cd backend && npm run reminders:send -- --force  # Reset last_reminder_sent_at first, then run (useful for re-testing)
+```
+The script runs as a separate process from the server — notifications and `last_reminder_sent_at` stamps are written to disk but the running server's in-memory DB won't see them until restart. For live end-to-end testing while the server is running, use `POST /dev/send-reminders` (auth required, non-production only) instead.
+
 ### Build & Tests
 ```bash
 npm run build            # Build both backend and frontend
@@ -34,6 +41,9 @@ Copy `.env.example` to `.env` in `backend/`. All `npm run` scripts load it autom
 - `JWT_SECRET` — secret for signing JWTs (defaults to insecure dev value if unset)
 - `JWT_EXPIRES_IN` — access token lifetime (default: `15m`)
 - `REFRESH_TOKEN_EXPIRES_IN` — refresh token lifetime (default: `7d`)
+
+Optional vars (email reminders — omit to log digest emails to console instead of sending):
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
 
 ## Architecture
 
@@ -57,7 +67,7 @@ This is a monorepo with a Node/Express backend and a Vite/React frontend.
 - **API client:** `src/api/client.js` — thin fetch wrapper prefixing all requests with `/api`. Automatically injects `Authorization` header, handles 401 by refreshing the access token (with request deduplication via `_refreshPromise`), then retries. Skips refresh for `/auth/*` endpoints.
 - **Hooks:** `src/hooks/` — React Query hooks (`useChores`, `useMembers`, `useHouse`, `useAuth`) that call the API client. `useHouseId()` returns `activeHouseId` from auth context.
 - **Pages:** `src/pages/` — `Login`, `Register`, `HouseSelector` (post-login landing; pick an existing house or create/join one inline), `Home` (main dashboard). `HouseSetup.jsx` exists but is no longer routed — `HouseSelector` covers that flow.
-- **Components:** `src/components/` — `ProtectedRoute` (redirects to `/login` when unauthenticated), `ChoreList`, `ChoreCard`, `MemberList`, `AddAssignmentForm`, `NotificationBell` (polls `GET /invitations` every 30s, shows pending house invitations with accept/decline).
+- **Components:** `src/components/` — `ProtectedRoute` (redirects to `/login` when unauthenticated), `ChoreList`, `ChoreCard`, `MemberList`, `AddAssignmentForm`, `NotificationBell` (polls both `GET /invitations` and `GET /notifications` every 30s; shows pending house invitations with accept/decline, and chore-reminder notifications with mark-as-read).
 - **Hooks:** `src/hooks/useInvitations.js` — `useInvitations()` (React Query, 30s poll), `useInviteUser(houseId)`, `useRespondInvitation()` (invalidates invitations cache on success). `src/hooks/useNotifications.js` — `useNotifications()` (30s poll), `useMarkNotificationRead()` (invalidates notifications cache).
 
 ### Auth flow
