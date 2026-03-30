@@ -35,9 +35,10 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // Dev-only endpoint — not available in production
 if (process.env.NODE_ENV !== 'production') {
-  app.post('/dev/send-reminders', requireAuth, async (_req, res) => {
+  app.post('/dev/send-reminders', requireAuth, async (req, res) => {
     try {
-      const result = await sendDailyReminders();
+      const force = req.query.force === 'true';
+      const result = await sendDailyReminders({ force });
       res.json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });

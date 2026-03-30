@@ -97,6 +97,10 @@ export const api = {
   markNotificationRead: (notificationId) =>
     request(`/notifications/${notificationId}/read`, { method: 'POST' }),
 
+  // Dev only
+  triggerReminders: (force = false) =>
+    request(`/dev/send-reminders${force ? '?force=true' : ''}`, { method: 'POST' }),
+
   // Assignments
   getAssignments: (houseId, params = {}) => {
     const q = new URLSearchParams(params).toString();

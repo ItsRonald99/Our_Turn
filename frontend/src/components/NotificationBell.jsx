@@ -99,30 +99,25 @@ export function NotificationBell() {
 
           {/* Reminders section */}
           <p className="notification-bell__heading">Reminders</p>
-          {appNotifications.length === 0 ? (
+          {unreadNotifications.length === 0 ? (
             <p className="notification-bell__empty">No reminders</p>
           ) : (
             <ul className="notification-bell__list">
-              {appNotifications.map((n) => (
-                <li
-                  key={n.id}
-                  className={`notification-bell__item${n.isRead ? ' notification-bell__item--read' : ''}`}
-                >
+              {unreadNotifications.map((n) => (
+                <li key={n.id} className="notification-bell__item">
                   <p className="notification-bell__message">
                     <strong>{n.title}</strong> — {n.message}
                   </p>
-                  {!n.isRead && (
-                    <div className="notification-bell__actions">
-                      <button
-                        type="button"
-                        className="notification-bell__accept"
-                        onClick={() => handleMarkRead(n.id)}
-                        disabled={markRead.isLoading}
-                      >
-                        Mark as read
-                      </button>
-                    </div>
-                  )}
+                  <div className="notification-bell__actions">
+                    <button
+                      type="button"
+                      className="notification-bell__accept"
+                      onClick={() => handleMarkRead(n.id)}
+                      disabled={markRead.isLoading}
+                    >
+                      Mark as read
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

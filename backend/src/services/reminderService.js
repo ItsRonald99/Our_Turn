@@ -11,9 +11,12 @@ import { createNotification } from './notificationService.js';
  *  - Group by user, send one digest email per user, create in-app notifications,
  *    then stamp last_reminder_sent_at so they won't fire again today.
  *
+ * @param {{ force?: boolean }} options
+ *   force — when true, skips the same-day dedup check (useful for dev/testing)
+ *
  * Returns { usersNotified, assignmentsProcessed }.
  */
-export async function sendDailyReminders() {
+export async function sendDailyReminders({ force = false } = {}) {
   const db = getDbSync();
 
   const now = new Date();
@@ -21,19 +24,22 @@ export async function sendDailyReminders() {
   const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
   // Assignments that are: incomplete, due now or earlier, not yet reminded today
+  // (dedup check skipped when force=true)
+  const dedupCondition = force
+    ? null
+    : or(
+        isNull(choreAssignments.lastReminderSentAt),
+        lt(choreAssignments.lastReminderSentAt, todayStart)
+      );
+
+  const whereClause = dedupCondition
+    ? and(isNull(choreAssignments.completedAt), lte(choreAssignments.dueDate, now), dedupCondition)
+    : and(isNull(choreAssignments.completedAt), lte(choreAssignments.dueDate, now));
+
   const dueAssignments = await db
     .select()
     .from(choreAssignments)
-    .where(
-      and(
-        isNull(choreAssignments.completedAt),
-        lte(choreAssignments.dueDate, now),
-        or(
-          isNull(choreAssignments.lastReminderSentAt),
-          lt(choreAssignments.lastReminderSentAt, todayStart)
-        )
-      )
-    );
+    .where(whereClause);
 
   if (dueAssignments.length === 0) {
     return { usersNotified: 0, assignmentsProcessed: 0 };
