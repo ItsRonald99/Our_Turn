@@ -144,6 +144,121 @@ body {
   color: var(--danger);
 }
 
+/* ─── Chore Manager ─────────────────────────────────────── */
+
+.chore-manager {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.chore-manager h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.chore-manager__empty {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+}
+
+.chore-manager__list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+
+.chore-manager__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.chore-manager__item:last-child {
+  border-bottom: none;
+}
+
+.chore-manager__item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.chore-manager__item-name {
+  font-weight: 500;
+}
+
+.chore-manager__item-desc {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.chore-manager__delete {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+.chore-manager__delete:hover {
+  color: var(--danger);
+}
+
+.chore-manager__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.chore-manager__input {
+  flex: 1;
+  min-width: 140px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 0.875rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.chore-manager__input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chore-manager__submit {
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  color: #0d1117;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  white-space: nowrap;
+}
+
+.chore-manager__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chore-manager__error {
+  color: var(--danger);
+  font-size: 0.8125rem;
+  margin: 0;
+  width: 100%;
+}
+
 /* ─── Notification Bell ─────────────────────────────────── */
 
 .notification-bell {

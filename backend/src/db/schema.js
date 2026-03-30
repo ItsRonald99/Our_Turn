@@ -27,6 +27,7 @@ export const choreTypes = sqliteTable('chore_types', {
   id: text('id').primaryKey(),
   houseId: text('house_id').notNull().references(() => houses.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
+  description: text('description'),
   rotationOrder: integer('rotation_order').notNull().default(0),
 });
 

@@ -1,14 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from 'react-query';
 import { api } from '../api/client';
 
-export function useChoreTypes(houseId) {
-  return useQuery(
-    ['choreTypes', houseId],
-    () => api.getChoreTypes(houseId).then((r) => r.data),
-    { enabled: !!houseId }
-  );
-}
-
 export function useAssignments(houseId, options = {}) {
   return useQuery(
     ['assignments', houseId, options],
@@ -60,18 +52,6 @@ export function useDeleteAssignment(houseId) {
     {
       onSuccess: () => {
         qc.invalidateQueries(['assignments', houseId]);
-      },
-    }
-  );
-}
-
-export function useCreateChoreType(houseId) {
-  const qc = useQueryClient();
-  return useMutation(
-    (body) => api.createChoreType(houseId, body),
-    {
-      onSuccess: () => {
-        qc.invalidateQueries(['choreTypes', houseId]);
       },
     }
   );

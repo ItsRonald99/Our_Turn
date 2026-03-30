@@ -75,6 +75,8 @@ export const api = {
   getChoreTypes: (houseId) => request(`/houses/${houseId}/chore-types`),
   createChoreType: (houseId, body) =>
     request(`/houses/${houseId}/chore-types`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteChoreType: (houseId, choreTypeId) =>
+    request(`/houses/${houseId}/chore-types/${choreTypeId}`, { method: 'DELETE' }),
 
   // Members
   getMembers: (houseId) => request(`/houses/${houseId}/members`),

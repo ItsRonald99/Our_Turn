@@ -4,44 +4,43 @@ import userEvent from '@testing-library/user-event';
 import { AddAssignmentForm } from '../AddAssignmentForm';
 
 vi.mock('../../hooks/useChores', () => ({
-  useChoreTypes: vi.fn(),
   useAssignments: vi.fn(),
   useCreateAssignment: vi.fn(),
-  useCreateChoreType: vi.fn(),
+}));
+
+vi.mock('../../hooks/useChoreTypes', () => ({
+  useChoreTypes: vi.fn(),
 }));
 
 vi.mock('../../hooks/useMembers', () => ({
   useMembers: vi.fn(),
 }));
 
-import { useChoreTypes, useCreateAssignment, useCreateChoreType } from '../../hooks/useChores';
+import { useCreateAssignment } from '../../hooks/useChores';
+import { useChoreTypes } from '../../hooks/useChoreTypes';
 import { useMembers } from '../../hooks/useMembers';
 
 const makeChoreType = (id, name) => ({ id, houseId: 'house-1', name, rotationOrder: 0 });
 const makeMember = (id, displayName) => ({ id, houseId: 'house-1', displayName, userId: null });
 
 const defaultMutate = vi.fn();
-const choreTypeMutate = vi.fn();
 
-function setupMocks({ choreTypes = [], members = [], isLoading = false, choreTypeLoading = false } = {}) {
+function setupMocks({ choreTypes = [], members = [], isLoading = false } = {}) {
   useChoreTypes.mockReturnValue({ data: choreTypes });
   useMembers.mockReturnValue({ data: members });
   useCreateAssignment.mockReturnValue({ mutate: defaultMutate, isLoading });
-  useCreateChoreType.mockReturnValue({ mutate: choreTypeMutate, isLoading: choreTypeLoading });
 }
 
 describe('AddAssignmentForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     defaultMutate.mockReset();
-    choreTypeMutate.mockReset();
   });
 
   it('renders the form even when there are no chore types yet', () => {
     setupMocks({ choreTypes: [] });
     render(<AddAssignmentForm houseId="house-1" />);
     expect(screen.getByRole('heading', { name: /New assignment/i })).toBeInTheDocument();
-    expect(screen.getByTitle(/Add new chore type/i)).toBeInTheDocument();
   });
 
   it('renders the form when chore types are available', () => {
@@ -121,7 +120,6 @@ describe('AddAssignmentForm', () => {
     const user = userEvent.setup();
     setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
     render(<AddAssignmentForm houseId="house-1" />);
-    // Don't select a chore type — submit button click should be a no-op
     await user.click(screen.getByRole('button', { name: /Add assignment/i }));
     expect(defaultMutate).not.toHaveBeenCalled();
   });
@@ -132,7 +130,7 @@ describe('AddAssignmentForm', () => {
     expect(screen.getByRole('button', { name: /Adding…/i })).toBeDisabled();
   });
 
-  it('passes memberId as undefined when rotation is on (even if a member was previously selected)', async () => {
+  it('passes memberId as undefined when rotation is on', async () => {
     const user = userEvent.setup();
     setupMocks({
       choreTypes: [makeChoreType('ct-1', 'Garbage')],
@@ -141,7 +139,6 @@ describe('AddAssignmentForm', () => {
     render(<AddAssignmentForm houseId="house-1" />);
 
     await user.selectOptions(screen.getByRole('combobox', { name: /Chore/i }), 'ct-1');
-    // Rotation is ON by default — submit and verify memberId is absent
     await user.click(screen.getByRole('button', { name: /Add assignment/i }));
 
     expect(defaultMutate).toHaveBeenCalledWith(
@@ -195,70 +192,6 @@ describe('AddAssignmentForm', () => {
       expect.objectContaining({ useRotation: true, memberId: undefined }),
       expect.any(Object)
     );
-  });
-
-  it('shows the + toggle button to reveal the new chore type form', () => {
-    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
-    render(<AddAssignmentForm houseId="house-1" />);
-    expect(screen.getByTitle(/Add new chore type/i)).toBeInTheDocument();
-  });
-
-  it('reveals and hides the new chore type input when + is toggled', async () => {
-    const user = userEvent.setup();
-    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
-    render(<AddAssignmentForm houseId="house-1" />);
-
-    const toggle = screen.getByTitle(/Add new chore type/i);
-    await user.click(toggle);
-    expect(screen.getByPlaceholderText(/New chore type name/i)).toBeInTheDocument();
-
-    await user.click(toggle); // hide again
-    expect(screen.queryByPlaceholderText(/New chore type name/i)).not.toBeInTheDocument();
-  });
-
-  it('calls createChoreType.mutate with the new name', async () => {
-    const user = userEvent.setup();
-    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
-    render(<AddAssignmentForm houseId="house-1" />);
-
-    await user.click(screen.getByTitle(/Add new chore type/i));
-    await user.type(screen.getByPlaceholderText(/New chore type name/i), 'Dishes');
-    await user.click(screen.getByRole('button', { name: /^Add$/i }));
-
-    expect(choreTypeMutate).toHaveBeenCalledWith(
-      { name: 'Dishes' },
-      expect.any(Object)
-    );
-  });
-
-  it('closes the new type form and auto-selects the type on success', async () => {
-    const user = userEvent.setup();
-    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
-    choreTypeMutate.mockImplementation((_vars, { onSuccess }) =>
-      onSuccess?.({ data: { id: 'ct-new', name: 'Dishes' } })
-    );
-    render(<AddAssignmentForm houseId="house-1" />);
-
-    await user.click(screen.getByTitle(/Add new chore type/i));
-    await user.type(screen.getByPlaceholderText(/New chore type name/i), 'Dishes');
-    await user.click(screen.getByRole('button', { name: /^Add$/i }));
-
-    expect(screen.queryByPlaceholderText(/New chore type name/i)).not.toBeInTheDocument();
-  });
-
-  it('shows error message when createChoreType fails', async () => {
-    const user = userEvent.setup();
-    setupMocks({ choreTypes: [makeChoreType('ct-1', 'Garbage')] });
-    choreTypeMutate.mockImplementation((_vars, { onError }) =>
-      onError?.(new Error('Already exists'))
-    );
-    render(<AddAssignmentForm houseId="house-1" />);
-
-    await user.click(screen.getByTitle(/Add new chore type/i));
-    await user.type(screen.getByPlaceholderText(/New chore type name/i), 'Garbage');
-    await user.click(screen.getByRole('button', { name: /^Add$/i }));
-
-    expect(screen.getByText('Already exists')).toBeInTheDocument();
   });
 });
 

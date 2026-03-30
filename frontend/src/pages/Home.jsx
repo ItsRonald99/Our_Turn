@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useHouseId } from '../hooks/useHouse';
 import { useAuth } from '../context/AuthContext';
-import { useChoreTypes, useAssignments } from '../hooks/useChores';
+import { useAssignments } from '../hooks/useChores';
+import { useChoreTypes } from '../hooks/useChoreTypes';
 import { useMembers } from '../hooks/useMembers';
 import { ChoreList } from '../components/ChoreList';
+import { ChoreManager } from '../components/ChoreManager';
 import { MemberList } from '../components/MemberList';
 import { AddAssignmentForm } from '../components/AddAssignmentForm';
 import { NotificationBell } from '../components/NotificationBell';
@@ -137,6 +139,7 @@ export function Home() {
                 showCompleted={showCompleted}
                 onToggleCompleted={() => setShowCompleted((v) => !v)}
               />
+              <ChoreManager houseId={houseId} />
               <AddAssignmentForm houseId={houseId} />
             </>
           )}

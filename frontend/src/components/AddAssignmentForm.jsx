@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useChoreTypes, useCreateAssignment, useCreateChoreType } from '../hooks/useChores';
+import { useCreateAssignment } from '../hooks/useChores';
+import { useChoreTypes } from '../hooks/useChoreTypes';
 import { useMembers } from '../hooks/useMembers';
 
 function todayISO() {
@@ -10,7 +11,6 @@ export function AddAssignmentForm({ houseId }) {
   const { data: choreTypes = [] } = useChoreTypes(houseId);
   const { data: members = [] } = useMembers(houseId);
   const createAssignment = useCreateAssignment(houseId);
-  const createChoreType = useCreateChoreType(houseId);
 
   const [choreTypeId, setChoreTypeId] = useState('');
   const [memberId, setMemberId] = useState('');
@@ -18,11 +18,6 @@ export function AddAssignmentForm({ houseId }) {
   const [dueDate, setDueDate] = useState(todayISO());
   const [recurrenceType, setRecurrenceType] = useState('');   // '' | 'interval' | 'weekday'
   const [recurrenceValue, setRecurrenceValue] = useState(7);  // interval days or weekday 0-6
-
-  // Inline chore type creation
-  const [showNewType, setShowNewType] = useState(false);
-  const [newTypeName, setNewTypeName] = useState('');
-  const [newTypeError, setNewTypeError] = useState('');
 
   const handleRecurrenceTypeChange = (type) => {
     setRecurrenceType(type);
@@ -53,77 +48,27 @@ export function AddAssignmentForm({ houseId }) {
     });
   };
 
-  const handleAddChoreType = (e) => {
-    e.preventDefault();
-    const name = newTypeName.trim();
-    if (!name) return;
-    setNewTypeError('');
-    createChoreType.mutate(
-      { name },
-      {
-        onSuccess: (res) => {
-          setChoreTypeId(res.data.id);
-          setNewTypeName('');
-          setShowNewType(false);
-        },
-        onError: (err) => {
-          setNewTypeError(err.message || 'Failed to create chore type');
-        },
-      }
-    );
-  };
-
   return (
     <section className="add-assignment">
       <h3>New assignment</h3>
       <form onSubmit={handleSubmit} className="add-assignment__form">
 
-        {/* Chore type selector + inline creation */}
+        {/* Chore type selector */}
         <label>
           Chore
-          <div className="add-assignment__chore-row">
-            <select
-              value={choreTypeId}
-              onChange={(e) => setChoreTypeId(e.target.value)}
-              required
-            >
-              <option value="">Select…</option>
-              {choreTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="add-assignment__new-type-toggle"
-              onClick={() => { setShowNewType((v) => !v); setNewTypeError(''); }}
-              title="Add new chore type"
-            >
-              {showNewType ? '✕' : '+'}
-            </button>
-          </div>
+          <select
+            value={choreTypeId}
+            onChange={(e) => setChoreTypeId(e.target.value)}
+            required
+          >
+            <option value="">Select…</option>
+            {choreTypes.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </label>
-
-        {showNewType && (
-          <div className="add-assignment__new-type">
-            <input
-              type="text"
-              value={newTypeName}
-              onChange={(e) => setNewTypeName(e.target.value)}
-              placeholder="New chore type name"
-              autoFocus
-            />
-            <button
-              type="button"
-              onClick={handleAddChoreType}
-              disabled={createChoreType.isLoading || !newTypeName.trim()}
-            >
-              {createChoreType.isLoading ? 'Adding…' : 'Add'}
-            </button>
-            {newTypeError && <p className="add-assignment__error">{newTypeError}</p>}
-          </div>
-        )}
 
         {/* Due date */}
         <label>
