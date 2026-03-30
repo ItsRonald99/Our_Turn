@@ -49,6 +49,17 @@ export const choreAssignments = sqliteTable('chore_assignments', {
   recurrenceType: text('recurrence_type'),   // null | 'interval' | 'weekday'
   recurrenceValue: integer('recurrence_value'), // 'interval': N days; 'weekday': 0-6 (JS getDay())
   useRotation: integer('use_rotation', { mode: 'boolean' }).notNull().default(false),
+  lastReminderSentAt: integer('last_reminder_sent_at', { mode: 'timestamp' }),
+});
+
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
 export const houseInvitations = sqliteTable('house_invitations', {

@@ -30,7 +30,7 @@ cd backend  && npx vitest run src/routes/__tests__/houses.test.js
 ```
 
 ### Environment
-Copy `.env.example` to `.env` in `backend/`. Required vars:
+Copy `.env.example` to `.env` in `backend/`. All `npm run` scripts load it automatically via Node's `--env-file-if-exists` flag (no dotenv package needed). Required vars:
 - `JWT_SECRET` — secret for signing JWTs (defaults to insecure dev value if unset)
 - `JWT_EXPIRES_IN` — access token lifetime (default: `15m`)
 - `REFRESH_TOKEN_EXPIRES_IN` — refresh token lifetime (default: `7d`)
@@ -43,10 +43,10 @@ This is a monorepo with a Node/Express backend and a Vite/React frontend.
 
 - **Entry:** `src/index.js` — sets up Express with CORS (origin: http://localhost:5173), cookie-parser, mounts all routers, initializes DB before listening.
 - **DB client:** `src/db/client.js` — uses **sql.js** (pure JS, no native build) to run SQLite in-process. The DB is loaded from disk into memory on startup, and `saveDb()` must be called after every write to flush it back to disk (`backend/dev.sqlite`). Migrations run automatically at startup from SQL files in `backend/drizzle/`.
-- **Schema:** `src/db/schema.js` — seven tables: `users`, `refresh_tokens`, `houses`, `chore_types`, `household_members`, `chore_assignments`, `house_invitations`. All chore data is scoped by `house_id`. `household_members.user_id` links to `users` (nullable for legacy/guest members). `household_members.role` is `'owner'|'member'` (default `'member'`).
-- **Routes:** `src/routes/` — `auth.js` at `/auth`; `houses.js`, `choreTypes.js`, `members.js`, `assignments.js` under `/houses/:houseId/...`; `houseInvitations.js` at `/houses/:houseId/invitations`; `invitations.js` at `/invitations`.
+- **Schema:** `src/db/schema.js` — eight tables: `users`, `refresh_tokens`, `houses`, `chore_types`, `household_members`, `chore_assignments`, `notifications`, `house_invitations`. All chore data is scoped by `house_id`. `household_members.user_id` links to `users` (nullable for legacy/guest members). `household_members.role` is `'owner'|'member'` (default `'member'`). `chore_assignments.last_reminder_sent_at` (nullable timestamp) prevents duplicate daily reminders. `notifications` rows are scoped to `user_id` with `type`, `title`, `message`, `is_read`.
+- **Routes:** `src/routes/` — `auth.js` at `/auth`; `houses.js`, `choreTypes.js`, `members.js`, `assignments.js` under `/houses/:houseId/...`; `houseInvitations.js` at `/houses/:houseId/invitations`; `invitations.js` at `/invitations`; `notifications.js` at `/notifications` (`GET /notifications`, `POST /notifications/:id/read`).
 - **Middleware:** `src/middleware/requireAuth.js` validates JWT and attaches `req.user`. `requireHouseMember.js` checks DB membership and attaches `req.member`. `requireHouseOwner.js` checks `req.member.role === 'owner'` — must run after `requireHouseMember`. `rateLimiter.js` exports `joinHouseLimiter` (10 req/15 min on `POST /houses/join`) and `invitationLimiter` (20 req/15 min on invitation endpoints); both auto-skip in `NODE_ENV=test`.
-- **Service layer:** `src/services/assignmentService.js` (rotation logic) and `src/services/authService.js` (JWT/bcrypt). Route handlers should delegate here rather than query the DB directly.
+- **Service layer:** `src/services/assignmentService.js` (rotation logic), `src/services/authService.js` (JWT/bcrypt), `src/services/notificationService.js` (`createNotification`, `listNotifications`, `markNotificationRead`), `src/services/emailService.js` (`sendDigestEmail` — uses nodemailer, falls back to console when `SMTP_HOST` is unset), `src/services/reminderService.js` (`sendDailyReminders` — queries due assignments, groups by user, sends digest email + in-app notifications, stamps `last_reminder_sent_at`). Route handlers should delegate here rather than query the DB directly.
 - **Test helpers:** `src/test/helpers.js` exports `makeChain(resolveValue)` (creates a chainable, awaitable Drizzle mock) and `createMockDb()` (mock db with spy methods for `select`/`insert`/`update`/`delete`). Use these when writing backend route tests that need to mock the DB.
 - **IDs:** All primary keys are UUIDs (`randomUUID()` from Node `crypto`), stored as text.
 
@@ -58,7 +58,7 @@ This is a monorepo with a Node/Express backend and a Vite/React frontend.
 - **Hooks:** `src/hooks/` — React Query hooks (`useChores`, `useMembers`, `useHouse`, `useAuth`) that call the API client. `useHouseId()` returns `activeHouseId` from auth context.
 - **Pages:** `src/pages/` — `Login`, `Register`, `HouseSelector` (post-login landing; pick an existing house or create/join one inline), `Home` (main dashboard). `HouseSetup.jsx` exists but is no longer routed — `HouseSelector` covers that flow.
 - **Components:** `src/components/` — `ProtectedRoute` (redirects to `/login` when unauthenticated), `ChoreList`, `ChoreCard`, `MemberList`, `AddAssignmentForm`, `NotificationBell` (polls `GET /invitations` every 30s, shows pending house invitations with accept/decline).
-- **Hooks:** `src/hooks/useInvitations.js` — `useInvitations()` (React Query, 30s poll), `useInviteUser(houseId)`, `useRespondInvitation()` (invalidates invitations cache on success).
+- **Hooks:** `src/hooks/useInvitations.js` — `useInvitations()` (React Query, 30s poll), `useInviteUser(houseId)`, `useRespondInvitation()` (invalidates invitations cache on success). `src/hooks/useNotifications.js` — `useNotifications()` (30s poll), `useMarkNotificationRead()` (invalidates notifications cache).
 
 ### Auth flow
 1. Register/login → backend issues a short-lived JWT (15m) in the response body and a long-lived refresh token (7d) in an httpOnly cookie.
@@ -77,3 +77,4 @@ This is a monorepo with a Node/Express backend and a Vite/React frontend.
 - **Member `displayName`:** Set from the user's `users.display_name` at join/create time. Falls back to `email` if the user record is not found.
 - **Nullable `user_id` on members:** Allows legacy/guest household members from Phase 1 to coexist with authenticated users.
 - **Recurring assignments:** `chore_assignments` has two nullable columns — `recurrence_type` (`'interval'|'weekday'`) and `recurrence_value` (N days or 0–6 weekday index). When `markComplete` is called on a recurring assignment, `assignmentService.nextRecurringDueDate()` computes the next due date and a new assignment is spawned automatically. All date arithmetic in that function uses `getUTCDate`/`setUTCDate`/`getUTCDay` to avoid local-timezone off-by-one errors with ISO date strings.
+- **Daily reminders:** A `node-cron` job (`"0 8 * * *"`, 8 AM UTC) in `index.js` calls `reminderService.sendDailyReminders()`. It finds uncompleted assignments where `due_date <= now` and `last_reminder_sent_at` is null or before today (UTC). Per-user digest emails go through `emailService.sendDigestEmail()` (nodemailer; logs to console when `SMTP_HOST` unset). On success, per-assignment `notifications` rows are created and `last_reminder_sent_at` is stamped. The cron job is skipped when `NODE_ENV=test`. SMTP env vars: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`.

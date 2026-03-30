@@ -1,13 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { useInvitations, useRespondInvitation } from '../hooks/useInvitations';
+import { useNotifications, useMarkNotificationRead } from '../hooks/useNotifications';
 import { useAuth } from '../context/AuthContext';
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
+
   const { data: invitations = [] } = useInvitations();
+  const { data: appNotifications = [] } = useNotifications();
   const respond = useRespondInvitation();
+  const markRead = useMarkNotificationRead();
   const { refreshHouses } = useAuth();
+
+  const unreadNotifications = appNotifications.filter((n) => !n.isRead);
+  const totalBadge = invitations.length + unreadNotifications.length;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -28,6 +35,10 @@ export function NotificationBell() {
     });
   };
 
+  const handleMarkRead = (notificationId) => {
+    markRead.mutate(notificationId);
+  };
+
   return (
     <div className="notification-bell" ref={wrapperRef}>
       <button
@@ -35,21 +46,23 @@ export function NotificationBell() {
         className="notification-bell__btn"
         onClick={() => setOpen((v) => !v)}
         aria-label={
-          invitations.length > 0
-            ? `Notifications (${invitations.length} pending)`
+          totalBadge > 0
+            ? `Notifications (${totalBadge} unread)`
             : 'Notifications'
         }
       >
         🔔
-        {invitations.length > 0 && (
+        {totalBadge > 0 && (
           <span className="notification-bell__badge" aria-hidden="true">
-            {invitations.length}
+            {totalBadge}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="notification-bell__dropdown" role="region" aria-label="Pending invitations">
+        <div className="notification-bell__dropdown" role="region" aria-label="Notifications">
+
+          {/* Invitations section */}
           <p className="notification-bell__heading">Invitations</p>
           {invitations.length === 0 ? (
             <p className="notification-bell__empty">No pending invitations</p>
@@ -83,6 +96,38 @@ export function NotificationBell() {
               ))}
             </ul>
           )}
+
+          {/* Reminders section */}
+          <p className="notification-bell__heading">Reminders</p>
+          {appNotifications.length === 0 ? (
+            <p className="notification-bell__empty">No reminders</p>
+          ) : (
+            <ul className="notification-bell__list">
+              {appNotifications.map((n) => (
+                <li
+                  key={n.id}
+                  className={`notification-bell__item${n.isRead ? ' notification-bell__item--read' : ''}`}
+                >
+                  <p className="notification-bell__message">
+                    <strong>{n.title}</strong> — {n.message}
+                  </p>
+                  {!n.isRead && (
+                    <div className="notification-bell__actions">
+                      <button
+                        type="button"
+                        className="notification-bell__accept"
+                        onClick={() => handleMarkRead(n.id)}
+                        disabled={markRead.isLoading}
+                      >
+                        Mark as read
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
         </div>
       )}
     </div>

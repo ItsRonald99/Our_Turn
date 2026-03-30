@@ -4,14 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "start": "node src/index.js",
+    "dev": "node --env-file-if-exists=.env --watch src/index.js",
+    "start": "node --env-file-if-exists=.env src/index.js",
     "build": "node --no-warnings -e \"require('fs').cpSync('src','dist',{recursive:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node src/db/migrate.js",
-    "db:seed": "node src/db/seed.js"
+    "db:migrate": "node --env-file-if-exists=.env src/db/migrate.js",
+    "db:seed": "node --env-file-if-exists=.env src/db/seed.js",
+    "reminders:send": "node --env-file-if-exists=.env src/scripts/send-reminders.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -21,6 +22,8 @@
     "express": "^4.18.2",
     "express-rate-limit": "^8.3.1",
     "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.4",
     "sql.js": "^1.10.0"
   },
   "devDependencies": {

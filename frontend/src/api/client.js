@@ -92,6 +92,11 @@ export const api = {
   respondInvitation: (invitationId, body) =>
     request(`/invitations/${invitationId}/respond`, { method: 'POST', body: JSON.stringify(body) }),
 
+  // Notifications
+  getNotifications: () => request('/notifications'),
+  markNotificationRead: (notificationId) =>
+    request(`/notifications/${notificationId}/read`, { method: 'POST' }),
+
   // Assignments
   getAssignments: (houseId, params = {}) => {
     const q = new URLSearchParams(params).toString();
