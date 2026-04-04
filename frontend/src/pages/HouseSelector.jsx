@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { NotificationBell } from '../components/NotificationBell';
+import { AccountSettings } from '../components/AccountSettings';
 
 export function HouseSelector() {
   const { user, houses, activeHouseId, setActiveHouseId, refreshHouses, logout } = useAuth();
@@ -82,6 +83,7 @@ export function HouseSelector() {
       <div className="auth-card">
         <div className="auth-card__user-bar">
           <span className="auth-card__username">{user?.displayName || user?.email}</span>
+          <AccountSettings />
           <NotificationBell />
           <button type="button" className="auth-card__signout" onClick={logout}>
             Sign out

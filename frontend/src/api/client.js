@@ -99,6 +99,12 @@ export const api = {
   markNotificationRead: (notificationId) =>
     request(`/notifications/${notificationId}/read`, { method: 'POST' }),
 
+  // Account settings
+  changePassword: (body) =>
+    request('/auth/change-password', { method: 'POST', body: JSON.stringify(body) }),
+  changeUsername: (body) =>
+    request('/auth/change-username', { method: 'POST', body: JSON.stringify(body) }),
+
   // Dev only
   triggerReminders: (force = false) =>
     request(`/dev/send-reminders${force ? '?force=true' : ''}`, { method: 'POST' }),

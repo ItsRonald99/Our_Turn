@@ -204,6 +204,112 @@ describe('authService.verifyAccessToken', () => {
   });
 });
 
+describe('authService.changePassword', () => {
+  let mockDb;
+
+  beforeEach(() => {
+    mockDb = createMockDb();
+    vi.clearAllMocks();
+    getDbSync.mockReturnValue(mockDb);
+  });
+
+  it('updates the password hash and returns sanitized user', async () => {
+    const user = makeUser();
+    const updated = makeUser({ passwordHash: 'hashed:newpassword99' });
+    mockDb.select
+      .mockReturnValueOnce(makeChain([user]))    // fetch user
+      .mockReturnValueOnce(makeChain([updated])); // re-fetch after update
+    mockDb.update.mockReturnValue(makeChain(undefined));
+
+    const result = await authService.changePassword('user-1', 'password123', 'newpassword99');
+
+    expect(mockDb.update).toHaveBeenCalledTimes(1);
+    expect(saveDb).toHaveBeenCalledTimes(1);
+    expect(result.passwordHash).toBeUndefined();
+    expect(result.id).toBe('user-1');
+  });
+
+  it('throws INVALID_PASSWORD when current password is wrong', async () => {
+    const user = makeUser();
+    mockDb.select.mockReturnValue(makeChain([user]));
+
+    await expect(
+      authService.changePassword('user-1', 'wrongpassword', 'newpassword99')
+    ).rejects.toMatchObject({ code: 'INVALID_PASSWORD' });
+
+    expect(mockDb.update).not.toHaveBeenCalled();
+    expect(saveDb).not.toHaveBeenCalled();
+  });
+
+  it('throws USER_NOT_FOUND when user does not exist', async () => {
+    mockDb.select.mockReturnValue(makeChain([]));
+
+    await expect(
+      authService.changePassword('nobody', 'password123', 'newpassword99')
+    ).rejects.toMatchObject({ code: 'USER_NOT_FOUND' });
+  });
+});
+
+describe('authService.changeUsername', () => {
+  let mockDb;
+
+  beforeEach(() => {
+    mockDb = createMockDb();
+    vi.clearAllMocks();
+    getDbSync.mockReturnValue(mockDb);
+  });
+
+  it('updates displayName and returns sanitized user', async () => {
+    const user = makeUser();
+    const updated = makeUser({ displayName: 'Bob' });
+    mockDb.select
+      .mockReturnValueOnce(makeChain([user]))    // fetch user
+      .mockReturnValueOnce(makeChain([updated])); // re-fetch after update
+    mockDb.update.mockReturnValue(makeChain(undefined));
+
+    const result = await authService.changeUsername('user-1', 'password123', 'Bob');
+
+    expect(mockDb.update).toHaveBeenCalledTimes(1);
+    expect(saveDb).toHaveBeenCalledTimes(1);
+    expect(result.displayName).toBe('Bob');
+    expect(result.passwordHash).toBeUndefined();
+  });
+
+  it('trims whitespace from the new username', async () => {
+    const user = makeUser();
+    const updated = makeUser({ displayName: 'Bob' });
+    mockDb.select
+      .mockReturnValueOnce(makeChain([user]))
+      .mockReturnValueOnce(makeChain([updated]));
+    mockDb.update.mockReturnValue(makeChain(undefined));
+
+    await authService.changeUsername('user-1', 'password123', '  Bob  ');
+
+    const setArg = mockDb.update.mock.results[0].value.set.mock.calls[0][0];
+    expect(setArg.displayName).toBe('Bob');
+  });
+
+  it('throws INVALID_PASSWORD when current password is wrong', async () => {
+    const user = makeUser();
+    mockDb.select.mockReturnValue(makeChain([user]));
+
+    await expect(
+      authService.changeUsername('user-1', 'wrongpassword', 'Bob')
+    ).rejects.toMatchObject({ code: 'INVALID_PASSWORD' });
+
+    expect(mockDb.update).not.toHaveBeenCalled();
+    expect(saveDb).not.toHaveBeenCalled();
+  });
+
+  it('throws USER_NOT_FOUND when user does not exist', async () => {
+    mockDb.select.mockReturnValue(makeChain([]));
+
+    await expect(
+      authService.changeUsername('nobody', 'password123', 'Bob')
+    ).rejects.toMatchObject({ code: 'USER_NOT_FOUND' });
+  });
+});
+
 describe('authService.getUserById', () => {
   let mockDb;
 

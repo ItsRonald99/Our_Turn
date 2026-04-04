@@ -95,6 +95,10 @@ export function AuthProvider({ children }) {
     clearAuth();
   }, [clearAuth]);
 
+  const updateUser = useCallback((updates) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+  }, []);
+
   const refreshHouses = useCallback(async () => {
     try {
       const res = await api.getHouses();
@@ -112,7 +116,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, houses, activeHouseId, setActiveHouseId, isLoading, login, register, logout, refreshHouses }}>
+    <AuthContext.Provider value={{ user, accessToken, houses, activeHouseId, setActiveHouseId, isLoading, login, register, logout, refreshHouses, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

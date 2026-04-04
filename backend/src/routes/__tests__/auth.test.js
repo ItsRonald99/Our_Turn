@@ -10,6 +10,8 @@ vi.mock('../../services/authService.js', () => ({
   refresh: vi.fn(),
   getUserById: vi.fn(),
   verifyAccessToken: vi.fn(),
+  changePassword: vi.fn(),
+  changeUsername: vi.fn(),
 }));
 
 import * as authService from '../../services/authService.js';
@@ -171,6 +173,124 @@ describe('POST /auth/refresh', () => {
     const res = await request(createApp())
       .post('/auth/refresh')
       .set('Cookie', 'refreshToken=bad-tok');
+
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /auth/change-password', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function authedRequest(app) {
+    authService.verifyAccessToken.mockReturnValue({ userId: 'u-1', email: 'alice@example.com' });
+    return request(app)
+      .post('/auth/change-password')
+      .set('Authorization', 'Bearer valid.token');
+  }
+
+  it('returns 200 with updated user on success', async () => {
+    authService.changePassword.mockResolvedValue(mockUser);
+
+    const res = await authedRequest(createApp())
+      .send({ currentPassword: 'oldpass99', newPassword: 'newpass99' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.id).toBe('u-1');
+    expect(authService.changePassword).toHaveBeenCalledWith('u-1', 'oldpass99', 'newpass99');
+  });
+
+  it('returns 400 when currentPassword is missing', async () => {
+    const res = await authedRequest(createApp())
+      .send({ newPassword: 'newpass99' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/current password/i);
+  });
+
+  it('returns 400 when newPassword is too short', async () => {
+    const res = await authedRequest(createApp())
+      .send({ currentPassword: 'oldpass99', newPassword: 'short' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/8 characters/i);
+  });
+
+  it('returns 401 when current password is wrong', async () => {
+    const err = new Error('Current password is incorrect');
+    err.code = 'INVALID_PASSWORD';
+    authService.changePassword.mockRejectedValue(err);
+
+    const res = await authedRequest(createApp())
+      .send({ currentPassword: 'wrongpass', newPassword: 'newpass99' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Current password is incorrect');
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    authService.verifyAccessToken.mockImplementation(() => { throw new Error(); });
+    const res = await request(createApp())
+      .post('/auth/change-password')
+      .send({ currentPassword: 'oldpass99', newPassword: 'newpass99' });
+
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /auth/change-username', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function authedRequest(app) {
+    authService.verifyAccessToken.mockReturnValue({ userId: 'u-1', email: 'alice@example.com' });
+    return request(app)
+      .post('/auth/change-username')
+      .set('Authorization', 'Bearer valid.token');
+  }
+
+  it('returns 200 with updated user on success', async () => {
+    authService.changeUsername.mockResolvedValue({ ...mockUser, displayName: 'Bob' });
+
+    const res = await authedRequest(createApp())
+      .send({ currentPassword: 'oldpass99', newUsername: 'Bob' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.displayName).toBe('Bob');
+    expect(authService.changeUsername).toHaveBeenCalledWith('u-1', 'oldpass99', 'Bob');
+  });
+
+  it('returns 400 when currentPassword is missing', async () => {
+    const res = await authedRequest(createApp())
+      .send({ newUsername: 'Bob' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/current password/i);
+  });
+
+  it('returns 400 when newUsername is empty', async () => {
+    const res = await authedRequest(createApp())
+      .send({ currentPassword: 'oldpass99', newUsername: '   ' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/username is required/i);
+  });
+
+  it('returns 401 when current password is wrong', async () => {
+    const err = new Error('Current password is incorrect');
+    err.code = 'INVALID_PASSWORD';
+    authService.changeUsername.mockRejectedValue(err);
+
+    const res = await authedRequest(createApp())
+      .send({ currentPassword: 'wrongpass', newUsername: 'Bob' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('Current password is incorrect');
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    authService.verifyAccessToken.mockImplementation(() => { throw new Error(); });
+    const res = await request(createApp())
+      .post('/auth/change-username')
+      .send({ currentPassword: 'oldpass99', newUsername: 'Bob' });
 
     expect(res.status).toBe(401);
   });

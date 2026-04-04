@@ -134,3 +134,52 @@ export async function getUserById(userId) {
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   return user ? sanitizeUser(user) : null;
 }
+
+export async function changePassword(userId, currentPassword, newPassword) {
+  const db = getDbSync();
+
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) {
+    const err = new Error('User not found');
+    err.code = 'USER_NOT_FOUND';
+    throw err;
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) {
+    const err = new Error('Current password is incorrect');
+    err.code = 'INVALID_PASSWORD';
+    throw err;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  saveDb();
+
+  const [updated] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return sanitizeUser(updated);
+}
+
+export async function changeUsername(userId, currentPassword, newUsername) {
+  const db = getDbSync();
+
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) {
+    const err = new Error('User not found');
+    err.code = 'USER_NOT_FOUND';
+    throw err;
+  }
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) {
+    const err = new Error('Current password is incorrect');
+    err.code = 'INVALID_PASSWORD';
+    throw err;
+  }
+
+  await db.update(users).set({ displayName: newUsername.trim() }).where(eq(users.id, userId));
+  saveDb();
+
+  const [updated] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return sanitizeUser(updated);
+}

@@ -1174,3 +1174,117 @@ button:disabled {
   filter: none;
 }
 
+/* ─── Account settings gear + dropdown ─────────────────── */
+
+.account-settings {
+  position: relative;
+}
+
+.account-settings__btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+
+.account-settings__btn:hover {
+  background: var(--surface);
+  color: var(--text);
+  filter: none;
+}
+
+.account-settings__dropdown {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.4rem);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 160px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.account-settings__option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.account-settings__option:last-child {
+  border-bottom: none;
+}
+
+.account-settings__option:hover {
+  background: var(--bg);
+  color: var(--accent);
+  filter: none;
+}
+
+/* ─── Account settings modal ────────────────────────────── */
+
+.account-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.account-modal__dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.account-modal__title {
+  margin: 0 0 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.account-modal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.account-modal__cancel {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 100%;
+}
+
+.account-modal__cancel:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text);
+  filter: none;
+}
+
+.account-modal__cancel:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+

@@ -19,6 +19,10 @@ vi.mock('../../components/NotificationBell', () => ({
   NotificationBell: () => <div data-testid="notification-bell" />,
 }));
 
+vi.mock('../../components/AccountSettings', () => ({
+  AccountSettings: () => <div data-testid="account-settings" />,
+}));
+
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal();

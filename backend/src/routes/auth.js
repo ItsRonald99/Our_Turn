@@ -93,6 +93,54 @@ router.post('/refresh', async (req, res) => {
   }
 });
 
+/** POST /auth/change-password */
+router.post('/change-password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (typeof currentPassword !== 'string' || !currentPassword) {
+      return res.status(400).json({ error: 'Current password is required' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    const user = await authService.changePassword(req.user.userId, currentPassword, newPassword);
+    res.json({ data: { user } });
+  } catch (err) {
+    if (err.code === 'INVALID_PASSWORD') {
+      return res.status(401).json({ error: err.message });
+    }
+    if (err.code === 'USER_NOT_FOUND') {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** POST /auth/change-username */
+router.post('/change-username', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newUsername } = req.body ?? {};
+    if (typeof currentPassword !== 'string' || !currentPassword) {
+      return res.status(400).json({ error: 'Current password is required' });
+    }
+    if (!newUsername || typeof newUsername !== 'string' || !newUsername.trim()) {
+      return res.status(400).json({ error: 'New username is required' });
+    }
+
+    const user = await authService.changeUsername(req.user.userId, currentPassword, newUsername);
+    res.json({ data: { user } });
+  } catch (err) {
+    if (err.code === 'INVALID_PASSWORD') {
+      return res.status(401).json({ error: err.message });
+    }
+    if (err.code === 'USER_NOT_FOUND') {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /** GET /auth/me */
 router.get('/me', requireAuth, async (req, res) => {
   try {
