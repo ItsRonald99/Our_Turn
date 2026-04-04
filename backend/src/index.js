@@ -11,6 +11,7 @@ import assignmentsRouter from './routes/assignments.js';
 import houseInvitationsRouter from './routes/houseInvitations.js';
 import invitationsRouter from './routes/invitations.js';
 import notificationsRouter from './routes/notifications.js';
+import dashboardRouter from './routes/dashboard.js';
 import { sendDailyReminders } from './services/reminderService.js';
 import { requireAuth } from './middleware/requireAuth.js';
 
@@ -30,6 +31,7 @@ app.use('/houses/:houseId/assignments', assignmentsRouter);
 app.use('/houses/:houseId/invitations', houseInvitationsRouter);
 app.use('/invitations', invitationsRouter);
 app.use('/notifications', notificationsRouter);
+app.use('/houses/:houseId/dashboard', dashboardRouter);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

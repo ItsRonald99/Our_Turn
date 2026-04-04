@@ -8,6 +8,7 @@ import { ChoreList } from '../components/ChoreList';
 import { ChoreManager } from '../components/ChoreManager';
 import { MemberList } from '../components/MemberList';
 import { AddAssignmentForm } from '../components/AddAssignmentForm';
+import { ChoreDashboard } from '../components/ChoreDashboard';
 import { NotificationBell } from '../components/NotificationBell';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
@@ -141,6 +142,7 @@ export function Home() {
               />
               <ChoreManager houseId={houseId} />
               <AddAssignmentForm houseId={houseId} />
+              <ChoreDashboard />
             </>
           )}
         </div>

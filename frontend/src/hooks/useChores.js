@@ -28,6 +28,7 @@ export function useCompleteAssignment(houseId) {
     {
       onSuccess: () => {
         qc.invalidateQueries(['assignments', houseId]);
+        qc.invalidateQueries(['dashboard', houseId]);
       },
     }
   );

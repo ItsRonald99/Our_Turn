@@ -1288,3 +1288,57 @@ button:disabled {
   cursor: not-allowed;
 }
 
+
+/* ── Dashboard ─────────────────────────────────────────────── */
+.dashboard {
+  margin-top: 2rem;
+}
+
+.dashboard__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.75rem;
+}
+
+.dashboard__loading,
+.dashboard__empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.dashboard__scroll {
+  overflow-x: auto;
+}
+
+.dashboard__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.dashboard__cell {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
+.dashboard__cell--header {
+  background: var(--surface);
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dashboard__cell--name {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dashboard__cell--count {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}

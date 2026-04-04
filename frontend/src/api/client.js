@@ -105,6 +105,9 @@ export const api = {
   changeUsername: (body) =>
     request('/auth/change-username', { method: 'POST', body: JSON.stringify(body) }),
 
+  // Dashboard
+  getDashboardStats: (houseId) => request(`/houses/${houseId}/dashboard`),
+
   // Dev only
   triggerReminders: (force = false) =>
     request(`/dev/send-reminders${force ? '?force=true' : ''}`, { method: 'POST' }),
