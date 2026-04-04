@@ -7,6 +7,7 @@ export function AccountSettings() {
   const [modalMode, setModalMode] = useState(null); // 'username' | 'password' | null
   const [currentPassword, setCurrentPassword] = useState('');
   const [newValue, setNewValue] = useState('');
+  const [confirmValue, setConfirmValue] = useState('');
   const [error, setError] = useState('');
   const wrapperRef = useRef(null);
 
@@ -30,6 +31,7 @@ export function AccountSettings() {
     setModalMode(mode);
     setCurrentPassword('');
     setNewValue('');
+    setConfirmValue('');
     setError('');
   };
 
@@ -37,6 +39,7 @@ export function AccountSettings() {
     setModalMode(null);
     setCurrentPassword('');
     setNewValue('');
+    setConfirmValue('');
     setError('');
   };
 
@@ -68,7 +71,7 @@ export function AccountSettings() {
 
   const isLoading = modalMode === 'password' ? changePassword.isLoading : changeUsername.isLoading;
   const newValueValid = modalMode === 'password'
-    ? newValue.length >= 8
+    ? newValue.length >= 8 && newValue === confirmValue
     : newValue.trim().length > 0;
   const canSubmit = currentPassword.length > 0 && newValueValid && !isLoading;
 
@@ -139,15 +142,26 @@ export function AccountSettings() {
                   />
                 </label>
               ) : (
-                <label className="auth-form__field">
-                  New password
-                  <input
-                    type="password"
-                    value={newValue}
-                    onChange={(e) => setNewValue(e.target.value)}
-                    placeholder="At least 8 characters"
-                  />
-                </label>
+                <>
+                  <label className="auth-form__field">
+                    New password
+                    <input
+                      type="password"
+                      value={newValue}
+                      onChange={(e) => setNewValue(e.target.value)}
+                      placeholder="At least 8 characters"
+                    />
+                  </label>
+                  <label className="auth-form__field">
+                    Confirm new password
+                    <input
+                      type="password"
+                      value={confirmValue}
+                      onChange={(e) => setConfirmValue(e.target.value)}
+                      placeholder="Confirm new password"
+                    />
+                  </label>
+                </>
               )}
               {error && <p className="auth-form__error">{error}</p>}
               <div className="account-modal__actions">

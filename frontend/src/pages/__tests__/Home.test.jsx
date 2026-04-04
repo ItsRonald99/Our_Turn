@@ -14,8 +14,11 @@ vi.mock('../../context/AuthContext', () => ({
 }));
 
 vi.mock('../../hooks/useChores', () => ({
-  useChoreTypes: vi.fn(() => ({ data: [], isLoading: false })),
   useAssignments: vi.fn(() => ({ data: [], isLoading: false })),
+}));
+
+vi.mock('../../hooks/useChoreTypes', () => ({
+  useChoreTypes: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
 vi.mock('../../hooks/useMembers', () => ({
@@ -30,11 +33,17 @@ vi.mock('../../api/client', () => ({
 vi.mock('../../components/ChoreList', () => ({
   ChoreList: () => <div data-testid="chore-list" />,
 }));
+vi.mock('../../components/ChoreManager', () => ({
+  ChoreManager: () => <div data-testid="chore-manager" />,
+}));
 vi.mock('../../components/MemberList', () => ({
   MemberList: () => <div data-testid="member-list" />,
 }));
 vi.mock('../../components/AddAssignmentForm', () => ({
   AddAssignmentForm: () => <div data-testid="add-assignment-form" />,
+}));
+vi.mock('../../components/ChoreDashboard', () => ({
+  ChoreDashboard: () => <div data-testid="chore-dashboard" />,
 }));
 vi.mock('../../components/NotificationBell', () => ({
   NotificationBell: () => <div data-testid="notification-bell" />,
@@ -92,7 +101,7 @@ describe('Home — delete house feature', () => {
   it('renders the active house name in the header', () => {
     setupMocks();
     renderHome();
-    expect(screen.getByRole('button', { name: 'The Blue House' })).toBeInTheDocument();
+    expect(screen.getByText('The Blue House')).toBeInTheDocument();
   });
 
   it('renders a delete button for the current house', () => {
@@ -346,7 +355,7 @@ describe('Home — delete house feature', () => {
   it('shows fallback "My House" when activeHouse is not found in houses list', () => {
     setupMocks({ houseId: 'h-orphan', houses: [] });
     renderHome();
-    expect(screen.getByRole('button', { name: 'My House' })).toBeInTheDocument();
+    expect(screen.getByText('My House')).toBeInTheDocument();
   });
 
   it('confirmation message shows fallback when house name is not in the list', async () => {
@@ -358,5 +367,44 @@ describe('Home — delete house feature', () => {
 
     // Should not crash; the span renders with undefined name gracefully
     expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+  });
+});
+
+describe('Home — header navigation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRefreshHouses.mockResolvedValue([]);
+  });
+
+  it('"Our Turn" is rendered as a clickable button', () => {
+    setupMocks();
+    renderHome();
+    expect(screen.getByRole('button', { name: /our turn/i })).toBeInTheDocument();
+  });
+
+  it('clicking "Our Turn" navigates to /houses', async () => {
+    const user = userEvent.setup();
+    setupMocks();
+    renderHome();
+
+    await user.click(screen.getByRole('button', { name: /our turn/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/houses');
+  });
+
+  it('house name is displayed as plain text, not a button', () => {
+    setupMocks();
+    renderHome();
+
+    // The house name text exists...
+    expect(screen.getByText('The Blue House')).toBeInTheDocument();
+    // ...but it is not a button
+    expect(screen.queryByRole('button', { name: 'The Blue House' })).not.toBeInTheDocument();
+  });
+
+  it('delete button text is "Delete This House"', () => {
+    setupMocks();
+    renderHome();
+    expect(screen.getByRole('button', { name: /delete this house/i })).toBeInTheDocument();
   });
 });

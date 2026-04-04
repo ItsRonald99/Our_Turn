@@ -138,6 +138,26 @@ describe('AccountSettings', () => {
     expect(screen.getByPlaceholderText(/at least 8 characters/i)).toBeInTheDocument();
   });
 
+  it('password modal shows a confirm new password input', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /account settings/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Change Password' }));
+
+    expect(screen.getByPlaceholderText(/confirm new password/i)).toBeInTheDocument();
+  });
+
+  it('username modal does not show a confirm password input', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /account settings/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Change Username' }));
+
+    expect(screen.queryByPlaceholderText(/confirm new password/i)).not.toBeInTheDocument();
+  });
+
   // ---------------------------------------------------------------------------
   // Modal — submit button disabled states
   // ---------------------------------------------------------------------------
@@ -149,6 +169,34 @@ describe('AccountSettings', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Change Username' }));
 
     expect(screen.getByRole('button', { name: /save username/i })).toBeDisabled();
+  });
+
+  it('submit is disabled for password mode when passwords do not match', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /account settings/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Change Password' }));
+
+    await user.type(screen.getByPlaceholderText('••••••••'), 'current1');
+    await user.type(screen.getByPlaceholderText(/at least 8 characters/i), 'newpassword1');
+    await user.type(screen.getByPlaceholderText(/confirm new password/i), 'newpassword2');
+
+    expect(screen.getByRole('button', { name: /save password/i })).toBeDisabled();
+  });
+
+  it('submit is enabled for password mode when passwords match and are valid', async () => {
+    const user = userEvent.setup();
+    renderSettings();
+
+    await user.click(screen.getByRole('button', { name: /account settings/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Change Password' }));
+
+    await user.type(screen.getByPlaceholderText('••••••••'), 'current1');
+    await user.type(screen.getByPlaceholderText(/at least 8 characters/i), 'newpassword');
+    await user.type(screen.getByPlaceholderText(/confirm new password/i), 'newpassword');
+
+    expect(screen.getByRole('button', { name: /save password/i })).not.toBeDisabled();
   });
 
   it('submit is disabled for password mode when new password is shorter than 8 chars', async () => {
@@ -206,6 +254,7 @@ describe('AccountSettings', () => {
 
     await user.type(screen.getByPlaceholderText('••••••••'), 'oldpassword');
     await user.type(screen.getByPlaceholderText(/at least 8 characters/i), 'newpassword');
+    await user.type(screen.getByPlaceholderText(/confirm new password/i), 'newpassword');
     await user.click(screen.getByRole('button', { name: /save password/i }));
 
     expect(changePasswordMutate).toHaveBeenCalledWith(
@@ -226,6 +275,7 @@ describe('AccountSettings', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Change Password' }));
     await user.type(screen.getByPlaceholderText('••••••••'), 'oldpassword');
     await user.type(screen.getByPlaceholderText(/at least 8 characters/i), 'newpassword');
+    await user.type(screen.getByPlaceholderText(/confirm new password/i), 'newpassword');
     await user.click(screen.getByRole('button', { name: /save password/i }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();

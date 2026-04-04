@@ -30,11 +30,13 @@ Household chore tracker for housemates. Manage chore assignments across multiple
 ## Features
 
 - **Accounts** — register and log in; sessions are maintained via short-lived JWTs + httpOnly refresh token cookie
-- **Multiple houses** — create or join any number of house groups; switch between them from the dashboard
+- **Account settings** — change your display name or password from any screen; changing a username propagates to all house groups you belong to
+- **Multiple houses** — create or join any number of house groups; switch between them from the house selector, or tap the "Our Turn" heading from inside a house
 - **Invite housemates** — share a 6-digit invite code, or send a direct invite by email
-- **Roles** — house creators are owners (can delete chore types); everyone else is a member
+- **Roles** — house creators are owners (can delete the house and chore types); everyone else is a member
 - **Chore types** — define the chores for each house (name + optional description)
 - **Assignments** — assign chores to members with a due date; supports manual pick, rotation (auto-selects the next member), and recurring schedules (every N days, or a fixed weekday)
+- **Completion dashboard** — per-house table showing how many of each chore type every member has completed; updates automatically when a chore is marked done
 - **Reminders** — a daily job (8 AM UTC) emails each user a digest of overdue/due chores and creates in-app notifications; clicking a house name in a notification jumps straight to that house
 - **Email** — configure SMTP env vars to send real emails; omit them to log digest output to the console instead
 
@@ -79,8 +81,8 @@ backend/
   src/
     db/          # schema, migrations, client (sql.js)
     middleware/  # requireAuth, requireHouseMember, requireHouseOwner, rateLimiter
-    routes/      # auth, houses, chore-types, members, assignments, invitations, notifications
-    services/    # business logic (assignments, auth, reminders, email, notifications)
+    routes/      # auth, houses, chore-types, members, assignments, invitations, notifications, dashboard
+    services/    # business logic (assignments, auth, reminders, email, notifications, dashboard)
     scripts/     # send-reminders.js (standalone reminder runner)
   drizzle/       # migration SQL files
 frontend/
@@ -89,6 +91,7 @@ frontend/
     context/     # AuthContext (user, token, active house)
     hooks/       # React Query hooks by domain
     pages/       # Login, Register, HouseSelector, Home
-    components/  # ChoreList, ChoreCard, ChoreManager, MemberList, AddAssignmentForm, NotificationBell
+    components/  # ChoreList, ChoreCard, ChoreManager, MemberList, AddAssignmentForm,
+                 # NotificationBell, AccountSettings, ChoreDashboard
 docs/            # API notes, data model, auth design
 ```

@@ -63,24 +63,25 @@ export function Home() {
     <main className="page-home">
       <header className="page-home__header">
         <div>
-          <h1>Our Turn</h1>
-          <div className="page-home__house-row">
+          <h1>
             <button
               type="button"
-              className="page-home__house-switch"
+              className="page-home__title-nav"
               onClick={() => navigate('/houses')}
-              title="Switch house"
             >
-              {activeHouse?.name ?? 'My House'}
+              Our Turn
             </button>
+          </h1>
+          <div className="page-home__house-row">
+            <span className="page-home__house-name">
+              {activeHouse?.name ?? 'My House'}
+            </span>
             <button
               type="button"
               className="page-home__house-delete"
               onClick={() => { setShowDeleteConfirm(true); setDeleteError(''); }}
-              title="Delete this house"
-              aria-label="Delete this house"
             >
-              ✕
+              Delete This House
             </button>
           </div>
           {activeHouse?.inviteCode && (

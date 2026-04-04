@@ -1066,36 +1066,39 @@ button:disabled {
   gap: 0.75rem;
 }
 
-.page-home__house-switch {
+.page-home__title-nav {
   background: none;
   border: none;
-  color: var(--muted);
-  font-size: 0.875rem;
+  color: var(--text);
+  font-size: inherit;
+  font-weight: inherit;
   padding: 0;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 
-.page-home__house-switch:hover:not(:disabled) {
+.page-home__title-nav:hover:not(:disabled) {
   color: var(--accent);
   filter: none;
 }
 
-.page-home__house-delete {
-  background: none;
-  border: none;
+.page-home__house-name {
   color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.page-home__house-delete {
+  background: var(--danger);
+  border: none;
+  color: #fff;
   font-size: 0.8rem;
-  padding: 0;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius);
   cursor: pointer;
-  opacity: 0.6;
 }
 
 .page-home__house-delete:hover:not(:disabled) {
-  color: var(--danger);
-  opacity: 1;
-  filter: none;
+  filter: brightness(1.15);
 }
 
 .page-home__delete-confirm {
