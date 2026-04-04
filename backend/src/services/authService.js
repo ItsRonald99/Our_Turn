@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 import { getDbSync, saveDb } from '../db/client.js';
-import { users, refreshTokens } from '../db/schema.js';
+import { users, refreshTokens, householdMembers } from '../db/schema.js';
 
 function getJwtSecret() {
   return process.env.JWT_SECRET || 'dev-secret-change-in-production';
@@ -177,7 +177,9 @@ export async function changeUsername(userId, currentPassword, newUsername) {
     throw err;
   }
 
-  await db.update(users).set({ displayName: newUsername.trim() }).where(eq(users.id, userId));
+  const trimmed = newUsername.trim();
+  await db.update(users).set({ displayName: trimmed }).where(eq(users.id, userId));
+  await db.update(householdMembers).set({ displayName: trimmed }).where(eq(householdMembers.userId, userId));
   saveDb();
 
   const [updated] = await db.select().from(users).where(eq(users.id, userId)).limit(1);

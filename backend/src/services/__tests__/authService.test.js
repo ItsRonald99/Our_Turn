@@ -269,7 +269,7 @@ describe('authService.changeUsername', () => {
 
     const result = await authService.changeUsername('user-1', 'password123', 'Bob');
 
-    expect(mockDb.update).toHaveBeenCalledTimes(1);
+    expect(mockDb.update).toHaveBeenCalledTimes(2); // users + household_members
     expect(saveDb).toHaveBeenCalledTimes(1);
     expect(result.displayName).toBe('Bob');
     expect(result.passwordHash).toBeUndefined();
@@ -285,8 +285,11 @@ describe('authService.changeUsername', () => {
 
     await authService.changeUsername('user-1', 'password123', '  Bob  ');
 
-    const setArg = mockDb.update.mock.results[0].value.set.mock.calls[0][0];
-    expect(setArg.displayName).toBe('Bob');
+    // Both updates (users and household_members) should use the trimmed value
+    const usersSetArg = mockDb.update.mock.results[0].value.set.mock.calls[0][0];
+    expect(usersSetArg.displayName).toBe('Bob');
+    const membersSetArg = mockDb.update.mock.results[1].value.set.mock.calls[0][0];
+    expect(membersSetArg.displayName).toBe('Bob');
   });
 
   it('throws INVALID_PASSWORD when current password is wrong', async () => {
