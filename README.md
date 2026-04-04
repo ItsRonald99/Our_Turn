@@ -1,55 +1,94 @@
 # Our Turn
 
-Household chore tracker for housemates: track who is responsible for garbage, recycling, snow shoveling, and other chores.
+Household chore tracker for housemates. Manage chore assignments across multiple house groups, track who's up next, and get reminders when things are overdue.
 
 ## Quick start
 
-1. **Install and set up**
+1. **Install dependencies**
    ```bash
    npm install
    cd backend && npm install && cd ..
    cd frontend && npm install && cd ..
    ```
 
-2. **Database (SQLite by default)**  
-   Migrations run automatically when the backend starts. Seed the default house and chore types once:
+2. **Configure environment**
+   Copy `backend/.env.example` to `backend/.env`. The app works out of the box with defaults, but set `JWT_SECRET` for any non-throwaway use.
+
+3. **Seed the database** *(first run only)*
    ```bash
    npm run db:seed
    ```
-   This creates one house (“Our House”) and chore types: Garbage, Recycling, Snow shoveling.
+   Creates a default house ("Our House") with starter chore types: Garbage, Recycling, Snow shoveling.
 
-3. **Run the app**
+4. **Run the app**
    ```bash
    npm run dev
    ```
-   - Backend: http://localhost:3001  
-   - Frontend: http://localhost:5173 (proxies API to `/api`)
+   - Backend API: http://localhost:3001
+   - Frontend: http://localhost:5173
 
-4. **Use the app**  
-   Open http://localhost:5173. Add housemates, then create assignments (with or without “rotate” to pick the next person). Mark assignments done when complete.
+## Features
 
-## Project structure
-
-- `backend/` — Express API, Drizzle ORM, SQLite (dev) / PostgreSQL (production-ready)
-- `frontend/` — Vite + React, React Query
-- `docs/` — API and data model notes
+- **Accounts** — register and log in; sessions are maintained via short-lived JWTs + httpOnly refresh token cookie
+- **Multiple houses** — create or join any number of house groups; switch between them from the dashboard
+- **Invite housemates** — share a 6-digit invite code, or send a direct invite by email
+- **Roles** — house creators are owners (can delete chore types); everyone else is a member
+- **Chore types** — define the chores for each house (name + optional description)
+- **Assignments** — assign chores to members with a due date; supports manual pick, rotation (auto-selects the next member), and recurring schedules (every N days, or a fixed weekday)
+- **Reminders** — a daily job (8 AM UTC) emails each user a digest of overdue/due chores and creates in-app notifications; clicking a house name in a notification jumps straight to that house
+- **Email** — configure SMTP env vars to send real emails; omit them to log digest output to the console instead
 
 ## Scripts
 
 | Command | Description |
-|--------|-------------|
+|---------|-------------|
 | `npm run dev` | Run backend and frontend together |
-| `npm run dev:backend` | Run API only (port 3001) |
-| `npm run dev:frontend` | Run frontend only (port 5173) |
+| `npm run dev:backend` | API only (port 3001) |
+| `npm run dev:frontend` | Frontend only (port 5173) |
 | `npm run db:seed` | Seed default house and chore types |
-| `npm run db:migrate` | Run DB migrations (also run on backend start) |
+| `npm run db:migrate` | Apply pending migrations (also runs on backend start) |
+| `npm run build` | Build both backend and frontend |
+| `cd backend && npm test` | Run backend tests |
+| `cd frontend && npm test` | Run frontend tests |
 
-## Environment
+## Environment variables
 
-- **Backend:** copy `backend/.env.example` to `backend/.env` if you need to set `DATABASE_URL` or `PORT`. Default: SQLite at `backend/dev.sqlite`, port 3001. The app uses **sql.js** (no native build) so it runs without compiling native modules.
-- **Frontend:** API is proxied from `/api` to `http://localhost:3001` in development.
+All variables live in `backend/.env`. The app uses Node's `--env-file-if-exists` flag — no dotenv package needed.
 
-## Roadmap
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_SECRET` | insecure dev value | Signs access tokens |
+| `JWT_EXPIRES_IN` | `15m` | Access token lifetime |
+| `REFRESH_TOKEN_EXPIRES_IN` | `7d` | Refresh token lifetime |
+| `PORT` | `3001` | Backend listen port |
+| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origin |
+| `SMTP_HOST` | — | SMTP server (omit to log emails to console) |
+| `SMTP_PORT` | — | SMTP port |
+| `SMTP_USER` | — | SMTP username |
+| `SMTP_PASS` | — | SMTP password |
 
-- **Phase 2:** User authentication; link users to household members. ✅ Complete — see [docs/phase-2-auth.md](docs/phase-2-auth.md) for the implementation plan.
-- **Phase 3:** Multiple house groups; switch house in the UI.
+## Tech stack
+
+- **Backend** — Node.js, Express, Drizzle ORM, SQLite via sql.js (pure JS — no native build step)
+- **Frontend** — Vite, React, React Query, React Router
+
+## Project structure
+
+```
+backend/
+  src/
+    db/          # schema, migrations, client (sql.js)
+    middleware/  # requireAuth, requireHouseMember, requireHouseOwner, rateLimiter
+    routes/      # auth, houses, chore-types, members, assignments, invitations, notifications
+    services/    # business logic (assignments, auth, reminders, email, notifications)
+    scripts/     # send-reminders.js (standalone reminder runner)
+  drizzle/       # migration SQL files
+frontend/
+  src/
+    api/         # thin fetch client (auto-refresh on 401)
+    context/     # AuthContext (user, token, active house)
+    hooks/       # React Query hooks by domain
+    pages/       # Login, Register, HouseSelector, Home
+    components/  # ChoreList, ChoreCard, ChoreManager, MemberList, AddAssignmentForm, NotificationBell
+docs/            # API notes, data model, auth design
+```
