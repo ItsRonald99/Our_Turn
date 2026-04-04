@@ -116,6 +116,7 @@ export async function sendDailyReminders({ force = false } = {}) {
         const isOverdue = new Date(assignment.dueDate) < todayStart;
         await createNotification({
           userId: user.id,
+          houseId: assignment.houseId,
           type: 'assignment_reminder',
           title: 'Chore Due',
           message: `${choreName} is ${isOverdue ? 'overdue' : 'due'} in ${houseName}`,

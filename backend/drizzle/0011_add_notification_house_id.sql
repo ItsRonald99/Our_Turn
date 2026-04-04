@@ -1,0 +1,1 @@
+ALTER TABLE notifications ADD COLUMN house_id TEXT REFERENCES houses(id) ON DELETE SET NULL;

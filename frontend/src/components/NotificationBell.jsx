@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useInvitations, useRespondInvitation } from '../hooks/useInvitations';
 import { useNotifications, useMarkNotificationRead } from '../hooks/useNotifications';
 import { useAuth } from '../context/AuthContext';
@@ -6,12 +7,13 @@ import { useAuth } from '../context/AuthContext';
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
+  const navigate = useNavigate();
 
   const { data: invitations = [] } = useInvitations();
   const { data: appNotifications = [] } = useNotifications();
   const respond = useRespondInvitation();
   const markRead = useMarkNotificationRead();
-  const { refreshHouses } = useAuth();
+  const { refreshHouses, houses, setActiveHouseId } = useAuth();
 
   const unreadNotifications = appNotifications.filter((n) => !n.isRead);
   const totalBadge = invitations.length + unreadNotifications.length;
@@ -37,6 +39,33 @@ export function NotificationBell() {
 
   const handleMarkRead = (notificationId) => {
     markRead.mutate(notificationId);
+  };
+
+  const handleHouseNavigate = (houseId) => {
+    setActiveHouseId(houseId);
+    setOpen(false);
+    navigate('/');
+  };
+
+  const renderReminderMessage = (n) => {
+    if (!n.houseId) return n.message;
+    const house = houses.find((h) => h.id === n.houseId);
+    if (!house) return n.message;
+    const suffix = ` in ${house.name}`;
+    if (!n.message.endsWith(suffix)) return n.message;
+    const prefix = n.message.slice(0, n.message.length - suffix.length);
+    return (
+      <>
+        {prefix} in{' '}
+        <button
+          type="button"
+          className="notification-bell__house-link"
+          onClick={() => handleHouseNavigate(n.houseId)}
+        >
+          {house.name}
+        </button>
+      </>
+    );
   };
 
   return (
@@ -106,7 +135,7 @@ export function NotificationBell() {
               {unreadNotifications.map((n) => (
                 <li key={n.id} className="notification-bell__item">
                   <p className="notification-bell__message">
-                    <strong>{n.title}</strong> — {n.message}
+                    <strong>{n.title}</strong> — {renderReminderMessage(n)}
                   </p>
                   <div className="notification-bell__actions">
                     <button

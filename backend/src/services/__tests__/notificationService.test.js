@@ -37,7 +37,28 @@ describe('notificationService', () => {
       expect(mockDb.insert).toHaveBeenCalledTimes(1);
     });
 
-    it('inserts with correct fields', async () => {
+    it('inserts with correct fields including houseId', async () => {
+      mockDb.insert.mockReturnValue(makeChain(undefined));
+
+      await service.createNotification({
+        userId: 'user-1',
+        houseId: 'house-1',
+        type: 'assignment_reminder',
+        title: 'Chore Due',
+        message: 'Dishes is due in Our House',
+      });
+
+      const inserted = mockDb.insert.mock.results[0].value.values.mock.calls[0][0];
+      expect(inserted.userId).toBe('user-1');
+      expect(inserted.houseId).toBe('house-1');
+      expect(inserted.type).toBe('assignment_reminder');
+      expect(inserted.title).toBe('Chore Due');
+      expect(inserted.message).toBe('Dishes is due in Our House');
+      expect(inserted.isRead).toBe(false);
+      expect(inserted.createdAt).toBeInstanceOf(Date);
+    });
+
+    it('inserts with houseId null when not provided', async () => {
       mockDb.insert.mockReturnValue(makeChain(undefined));
 
       await service.createNotification({
@@ -48,12 +69,7 @@ describe('notificationService', () => {
       });
 
       const inserted = mockDb.insert.mock.results[0].value.values.mock.calls[0][0];
-      expect(inserted.userId).toBe('user-1');
-      expect(inserted.type).toBe('assignment_reminder');
-      expect(inserted.title).toBe('Chore Due');
-      expect(inserted.message).toBe('Dishes is due in Our House');
-      expect(inserted.isRead).toBe(false);
-      expect(inserted.createdAt).toBeInstanceOf(Date);
+      expect(inserted.houseId).toBeNull();
     });
 
     it('does NOT call saveDb — caller is responsible for batching saves', async () => {

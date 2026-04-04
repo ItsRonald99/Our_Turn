@@ -115,13 +115,14 @@ describe('reminderService.sendDailyReminders', () => {
     }));
   });
 
-  it('creates a notification with type assignment_reminder', async () => {
+  it('creates a notification with type assignment_reminder and the correct houseId', async () => {
     setupSingleAssignment(mockDb);
 
     await sendDailyReminders();
 
     expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
+      houseId: 'h-1',
       type: 'assignment_reminder',
       title: 'Chore Due',
     }));

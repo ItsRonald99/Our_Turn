@@ -7,12 +7,13 @@ import { randomUUID } from 'crypto';
  * Insert a notification row. Does NOT call saveDb() — callers that batch
  * multiple inserts should call saveDb() themselves after the batch.
  */
-export async function createNotification({ userId, type, title, message }) {
+export async function createNotification({ userId, houseId = null, type, title, message }) {
   const db = getDbSync();
   const id = randomUUID();
   await db.insert(notifications).values({
     id,
     userId,
+    houseId,
     type,
     title,
     message,

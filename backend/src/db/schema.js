@@ -56,6 +56,7 @@ export const choreAssignments = sqliteTable('chore_assignments', {
 export const notifications = sqliteTable('notifications', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  houseId: text('house_id').references(() => houses.id, { onDelete: 'set null' }),
   type: text('type').notNull(),
   title: text('title').notNull(),
   message: text('message').notNull(),
