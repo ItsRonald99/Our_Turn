@@ -24,9 +24,6 @@ COPY backend/drizzle ./drizzle
 # Copy the compiled frontend into public/ so Express can serve it
 COPY --from=frontend-build /app/frontend/dist ./public
 
-# SQLite data lives on a mounted volume so it survives container restarts
-VOLUME ["/data"]
-
 EXPOSE 3001
 
 ENV NODE_ENV=production
