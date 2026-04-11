@@ -6,6 +6,7 @@ function createTransporter() {
   return nodemailer.createTransport({
     host: SMTP_HOST,
     port: Number(SMTP_PORT) || 587,
+    family: 4, // force IPv4 — Railway containers have no IPv6 outbound connectivity
     auth: SMTP_USER && SMTP_PASS ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
   });
 }

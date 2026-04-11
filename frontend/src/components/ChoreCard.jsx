@@ -33,7 +33,7 @@ export function ChoreCard({ houseId, assignment, choreTypeName, memberName, memb
   const [editError, setEditError] = useState('');
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
 
-  const due = assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : '—';
+  const due = assignment.dueDate ? new Date(assignment.dueDate).toISOString().slice(0, 10) : '—';
   const isCompleted = !!assignment.completedAt;
   const isBusy = complete.isLoading || update.isLoading || remove.isLoading;
 

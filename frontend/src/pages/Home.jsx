@@ -133,6 +133,7 @@ export function Home() {
             <p>Loading…</p>
           ) : (
             <>
+              <ChoreDashboard />
               <ChoreList
                 houseId={houseId}
                 assignments={assignments}
@@ -143,7 +144,6 @@ export function Home() {
               />
               <ChoreManager houseId={houseId} />
               <AddAssignmentForm houseId={houseId} />
-              <ChoreDashboard />
             </>
           )}
         </div>

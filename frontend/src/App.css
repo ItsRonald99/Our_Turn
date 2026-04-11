@@ -1294,7 +1294,7 @@ button:disabled {
 
 /* ── Dashboard ─────────────────────────────────────────────── */
 .dashboard {
-  margin-top: 2rem;
+  margin-bottom: 2rem;
 }
 
 .dashboard__title {
