@@ -100,6 +100,7 @@ export async function sendDailyReminders({ force = false } = {}) {
   let usersNotified = 0;
 
   for (const { user, items } of byUser.values()) {
+    // Email is best-effort — a send failure must not block in-app notifications.
     try {
       await sendDigestEmail({
         toEmail: user.email,
@@ -110,8 +111,12 @@ export async function sendDailyReminders({ force = false } = {}) {
           dueDate: assignment.dueDate,
         })),
       });
+    } catch (err) {
+      console.error(`[reminderService] Email failed for user ${user.id}:`, err.message);
+    }
 
-      // Create one in-app notification per assignment
+    // In-app notifications and stamping run regardless of email outcome.
+    try {
       for (const { assignment, choreName, houseName } of items) {
         const isOverdue = new Date(assignment.dueDate) < todayStart;
         await createNotification({
@@ -134,7 +139,7 @@ export async function sendDailyReminders({ force = false } = {}) {
       saveDb();
       usersNotified++;
     } catch (err) {
-      console.error(`[reminderService] Failed for user ${user.id}:`, err.message);
+      console.error(`[reminderService] Notification failed for user ${user.id}:`, err.message);
     }
   }
 

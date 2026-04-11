@@ -205,16 +205,17 @@ describe('reminderService.sendDailyReminders', () => {
   // ---------------------------------------------------------------------------
   // Email failure — should not stamp lastReminderSentAt
   // ---------------------------------------------------------------------------
-  it('does not stamp lastReminderSentAt or call saveDb when email sending fails', async () => {
+  it('still creates in-app notification and stamps lastReminderSentAt even when email sending fails', async () => {
     setupSingleAssignment(mockDb);
     sendDigestEmail.mockRejectedValue(new Error('SMTP connection refused'));
 
     const result = await sendDailyReminders();
 
-    // User was not notified successfully
-    expect(result.usersNotified).toBe(0);
-    expect(mockDb.update).not.toHaveBeenCalled();
-    expect(saveDb).not.toHaveBeenCalled();
+    // Email failure is tolerated — in-app notification and stamp still happen
+    expect(result.usersNotified).toBe(1);
+    expect(createNotification).toHaveBeenCalledTimes(1);
+    expect(mockDb.update).toHaveBeenCalled();
+    expect(saveDb).toHaveBeenCalled();
   });
 
   it('continues processing other users when one user\'s email fails', async () => {
@@ -243,8 +244,8 @@ describe('reminderService.sendDailyReminders', () => {
 
     const result = await sendDailyReminders();
 
-    // Only second user was successfully notified
-    expect(result.usersNotified).toBe(1);
+    // Both users get in-app notifications even though first user's email failed
+    expect(result.usersNotified).toBe(2);
     expect(result.assignmentsProcessed).toBe(2);
   });
 
