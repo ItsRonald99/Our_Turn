@@ -54,7 +54,7 @@ export function AddAssignmentForm({ houseId }) {
       <form onSubmit={handleSubmit} className="add-assignment__form">
 
         {/* Chore type selector */}
-        <label>
+        <label className="add-assignment__label">
           Chore
           <select
             value={choreTypeId}
@@ -71,7 +71,7 @@ export function AddAssignmentForm({ houseId }) {
         </label>
 
         {/* Due date */}
-        <label>
+        <label className="add-assignment__label">
           Due date
           <input
             type="date"
@@ -83,7 +83,7 @@ export function AddAssignmentForm({ houseId }) {
         </label>
 
         {/* Recurrence */}
-        <label>
+        <label className="add-assignment__label">
           Repeat
           <select
             value={recurrenceType}
@@ -97,7 +97,7 @@ export function AddAssignmentForm({ houseId }) {
         </label>
 
         {recurrenceType === 'interval' && (
-          <label>
+          <label className="add-assignment__label">
             Interval
             <select
               value={recurrenceValue}
@@ -120,7 +120,7 @@ export function AddAssignmentForm({ houseId }) {
         )}
 
         {recurrenceType === 'weekday' && (
-          <label>
+          <label className="add-assignment__label">
             Day of week
             <select
               value={recurrenceValue}
@@ -152,28 +152,29 @@ export function AddAssignmentForm({ houseId }) {
           Rotate (pick next person automatically)
         </label>
 
-        {/* Manual assignee — only shown when rotation is off */}
-        {!useRotation && (
-          <label>
-            Assign to
-            <select value={memberId} onChange={(e) => setMemberId(e.target.value)} required>
-              <option value="">Select member…</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        {/* Footer row: optional assignee + submit */}
+        <div className="add-assignment__footer">
+          {!useRotation && (
+            <label className="add-assignment__label">
+              Assign to
+              <select value={memberId} onChange={(e) => setMemberId(e.target.value)} required>
+                <option value="">Select member…</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button type="submit" disabled={createAssignment.isLoading}>
+            {createAssignment.isLoading ? 'Adding…' : 'Add assignment'}
+          </button>
+        </div>
 
         {createAssignment.isError && (
           <p className="add-assignment__error">{createAssignment.error?.message}</p>
         )}
-
-        <button type="submit" disabled={createAssignment.isLoading}>
-          {createAssignment.isLoading ? 'Adding…' : 'Add assignment'}
-        </button>
       </form>
     </section>
   );

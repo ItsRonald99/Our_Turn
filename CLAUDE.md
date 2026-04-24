@@ -21,9 +21,9 @@ npm run db:generate      # Regenerate migration SQL from schema changes (run ins
 ### Reminders
 ```bash
 cd backend && npm run reminders:send           # Trigger the daily reminder job once (respects same-day dedup)
-cd backend && npm run reminders:send -- --force  # Reset last_reminder_sent_at first, then run (useful for re-testing)
+cd backend && npm run reminders:send -- --force  # Reset last_reminder_sent_at first, then re-run
 ```
-The script runs as a separate process from the server — notifications and `last_reminder_sent_at` stamps are written to disk but the running server's in-memory DB won't see them until restart. For live end-to-end testing while the server is running, use `POST /dev/send-reminders` (auth required, non-production only) instead.
+The reminder script runs as a separate process — writes to disk but the running server's in-memory DB won't reflect them until restart. For live end-to-end testing use `POST /dev/send-reminders` (auth required, non-production only).
 
 ### Build & Tests
 ```bash
@@ -37,79 +37,57 @@ cd backend  && npx vitest run src/routes/__tests__/houses.test.js
 ```
 
 ### Environment
-Copy `.env.example` to `.env` in `backend/`. All `npm run` scripts load it automatically via Node's `--env-file-if-exists` flag (no dotenv package needed). Required vars:
-- `JWT_SECRET` — secret for signing JWTs (defaults to insecure dev value if unset)
-- `JWT_EXPIRES_IN` — access token lifetime (default: `15m`)
-- `REFRESH_TOKEN_EXPIRES_IN` — refresh token lifetime (default: `7d`)
-
-Optional vars (email reminders — omit to log digest emails to console instead of sending):
-- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
-
-Optional vars (server):
-- `PORT` — backend listen port (default: `3001`)
-- `CORS_ORIGIN` — allowed origin for CORS (default: `http://localhost:5173`)
+Copy `.env.example` to `.env` in `backend/`. All `npm run` scripts load it automatically via Node's `--env-file-if-exists` flag. Required: `JWT_SECRET`, `JWT_EXPIRES_IN`, `REFRESH_TOKEN_EXPIRES_IN`. Optional for email: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (omit to log digest emails to console). Optional for server: `PORT`, `CORS_ORIGIN`.
 
 ## Architecture
 
-This is a monorepo with a Node/Express backend and a Vite/React frontend.
+Monorepo: `backend/` is Node/Express, `frontend/` is Vite/React. In production both are served by the same Express process (React build copied into `backend/public/`). In development, Vite proxies `/api/*` → `http://localhost:3001` with no path rewriting.
 
-### Backend (`backend/`)
+### Backend (`backend/src/`)
 
-- **Entry:** `src/index.js` — sets up Express with CORS, cookie-parser, mounts all routers under the `/api` prefix, initializes DB before listening. Binds to `0.0.0.0` (required for Docker/Railway). In production (`NODE_ENV=production`), also serves the compiled React frontend from `./public` via `express.static` with a catch-all that returns `index.html` for SPA routing.
-- **DB client:** `src/db/client.js` — uses **sql.js** (pure JS, no native build) to run SQLite in-process. The DB is loaded from disk into memory on startup, and `saveDb()` must be called after every write to flush it back to disk (`backend/dev.sqlite`). Migrations run automatically at startup from SQL files in `backend/drizzle/`.
-- **Schema:** `src/db/schema.js` — eight tables: `users`, `refresh_tokens`, `houses`, `chore_types`, `household_members`, `chore_assignments`, `notifications`, `house_invitations`. All chore data is scoped by `house_id`. `chore_types` has `name` (required) and `description` (nullable text). `household_members.user_id` links to `users` (nullable for legacy/guest members). `household_members.role` is `'owner'|'member'` (default `'member'`). `chore_assignments.last_reminder_sent_at` (nullable timestamp) prevents duplicate daily reminders. `notifications` rows are scoped to `user_id` with `type`, `title`, `message`, `is_read`, and nullable `house_id` (FK to `houses`, `ON DELETE SET NULL`) used by reminder notifications to link back to the relevant house.
-- **Routes:** `src/routes/` — all mounted under the `/api` prefix in `index.js`. `auth.js` at `/api/auth` (`POST /register`, `POST /login`, `POST /logout`, `POST /refresh`, `GET /me`, `POST /change-password`, `POST /change-username` — last two require `requireAuth` and verify current password via bcrypt before updating); `houses.js`, `choreTypes.js` (`GET`, `POST {title, description}`, `DELETE /:id` — owner only), `members.js`, `assignments.js` under `/api/houses/:houseId/...`; `houseInvitations.js` at `/api/houses/:houseId/invitations`; `invitations.js` at `/api/invitations`; `notifications.js` at `/api/notifications` (`GET /api/notifications`, `POST /api/notifications/:id/read`); `dashboard.js` at `/api/houses/:houseId/dashboard` (`GET` — requireAuth + requireHouseMember). The `/health` endpoint has no `/api` prefix (used by Railway health checks).
-- **Middleware:** `src/middleware/requireAuth.js` validates JWT and attaches `req.user`. `requireHouseMember.js` checks DB membership and attaches `req.member`. `requireHouseOwner.js` checks `req.member.role === 'owner'` — must run after `requireHouseMember`. `rateLimiter.js` exports `joinHouseLimiter` (10 req/15 min on `POST /houses/join`) and `invitationLimiter` (20 req/15 min on invitation endpoints); both auto-skip in `NODE_ENV=test`.
-- **Service layer:** `src/services/assignmentService.js` (rotation logic), `src/services/authService.js` (JWT/bcrypt; also `changePassword` and `changeUsername` — both fetch user, bcrypt-compare current password throwing `INVALID_PASSWORD` on failure, update DB, call `saveDb()`, return sanitized user; `changeUsername` also updates `household_members.display_name` for every membership row to keep display names in sync across all house groups), `src/services/choreTypeService.js` (`createChoreType`, `deleteChoreType` — delete uses `AND(id, houseId)` to prevent cross-house deletion), `src/services/notificationService.js` (`createNotification`, `listNotifications`, `markNotificationRead`), `src/services/emailService.js` (`sendDigestEmail` — uses nodemailer, falls back to console when `SMTP_HOST` is unset), `src/services/reminderService.js` (`sendDailyReminders` — queries due assignments, groups by user, sends digest email + in-app notifications, stamps `last_reminder_sent_at`), `src/services/dashboardService.js` (`getChoreCompletionStats(houseId)` — runs three parallel queries for members, chore types, and completed assignments, then aggregates counts in JS; returns `{ members: [{ memberId, displayName, chores: { [choreTypeId]: count } }], choreTypes: [{ id, name }] }`). Route handlers should delegate here rather than query the DB directly.
-- **Test helpers:** `src/test/helpers.js` exports `makeChain(resolveValue)` (creates a chainable, awaitable Drizzle mock) and `createMockDb()` (mock db with spy methods for `select`/`insert`/`update`/`delete`). Use these when writing backend route tests that need to mock the DB.
-- **IDs:** All primary keys are UUIDs (`randomUUID()` from Node `crypto`), stored as text.
+- **Entry** `index.js` — mounts all routers under `/api`, initializes the DB before listening, schedules the daily reminder cron (`0 8 * * *` UTC, skipped in test env). Binds `0.0.0.0` for Docker/Railway. Serves the frontend static build in production.
+- **DB client** `db/client.js` — uses **sql.js** (pure JS SQLite, no native build). The entire DB is loaded from disk into memory at startup; `saveDb()` must be called after every write to flush back to disk (`backend/dev.sqlite`). Migrations run automatically from SQL files in `backend/drizzle/` on startup.
+- **Schema** `db/schema.js` — eight tables: `users`, `refresh_tokens`, `houses`, `chore_types`, `household_members`, `chore_assignments`, `notifications`, `house_invitations`. All chore data is scoped by `house_id`. `PRAGMA foreign_keys = ON` is set on every init so `onDelete: 'cascade'` actually fires.
+- **Routes** `routes/` — all mounted under `/api`. Route handlers delegate to services rather than querying the DB directly. The `/health` endpoint has no `/api` prefix (Railway health check).
+- **Middleware** `middleware/requireAuth.js` → `requireHouseMember.js` → `requireHouseOwner.js` — must run in this order. `rateLimiter.js` auto-skips in `NODE_ENV=test`.
+- **Services** `services/` — `assignmentService.js` (rotation logic), `authService.js` (JWT/bcrypt, `changePassword`, `changeUsername`), `choreTypeService.js`, `notificationService.js`, `emailService.js` (nodemailer, console fallback when SMTP unconfigured, forces `family: 4` for Railway IPv4), `reminderService.js` (queries due assignments, sends digest + in-app notifications, stamps `last_reminder_sent_at`), `dashboardService.js`.
+- **Test helpers** `test/helpers.js` — exports `makeChain(resolveValue)` and `createMockDb()` for mocking Drizzle in route tests.
 
-### Frontend (`frontend/`)
+### Frontend (`frontend/src/`)
 
-- **Entry:** `src/main.jsx` → `src/App.jsx` — wraps the app in `QueryClientProvider` + `AuthProvider` + `BrowserRouter`. Routes: `/login`, `/register`, `/` (protected), `*` → `/`.
-- **Auth context:** `src/context/AuthContext.jsx` — holds `user`, `accessToken`, `activeHouseId`, `isLoading`. Exposes `updateUser(updates)` to merge partial changes into user state (used by `AccountSettings` after a successful username change). On mount, attempts silent token refresh via httpOnly cookie; sets `isLoading=false` once complete. Uses `isMounted` ref to guard against state updates after unmount.
-- **API client:** `src/api/client.js` — thin fetch wrapper prefixing all requests with `/api`. Automatically injects `Authorization` header, handles 401 by refreshing the access token (with request deduplication via `_refreshPromise`), then retries. Skips refresh for `/auth/*` endpoints.
-- **Hooks:** `src/hooks/` — React Query hooks split by domain. `useChores.js` exports assignment hooks only (`useAssignments`, `useCreateAssignment`, `useCompleteAssignment`, `useUpdateAssignment`, `useDeleteAssignment`). `useChoreTypes.js` exports `useChoreTypes`, `useCreateChoreType`, `useDeleteChoreType`. `useMembers`, `useHouse`, `useAuth` follow the same pattern. `useHouseId()` returns `activeHouseId` from auth context.
-- **Pages:** `src/pages/` — `Login`, `Register`, `HouseSelector` (post-login landing; pick an existing house or create/join one inline), `Home` (main dashboard — the `<h1>` "Our Turn" is a nav button that navigates to `/houses`; the active house name is displayed as a plain `<span>`, not a button; the delete-house trigger is a visible red "Delete This House" button). `HouseSetup.jsx` exists but is no longer routed — `HouseSelector` covers that flow.
-- **Components:** `src/components/` — `ProtectedRoute` (redirects to `/login` when unauthenticated), `ChoreList`, `ChoreCard`, `MemberList`, `AddAssignmentForm` (assignment creation only — no inline chore type creation), `ChoreManager` (owner-facing: lists chore types with optional descriptions, create form, delete per item), `NotificationBell` (polls both `GET /invitations` and `GET /notifications` every 30s; shows pending house invitations with accept/decline, and chore-reminder notifications with mark-as-read; reminder messages render the house name as a clickable button that calls `setActiveHouseId` + `navigate('/')` to jump directly to that house's dashboard), `AccountSettings` (gear button beside username in `HouseSelector`; opens a dropdown with "Change Username" / "Change Password" options; each option opens a modal form that requires current password verification; the change-password form has a "confirm new password" field and the submit is gated on both `newValue.length >= 8` and `newValue === confirmValue`; on success closes modal and calls `updateUser` for username changes), `ChoreDashboard` (reads from `useDashboardStats()`; renders a table with members as rows and chore types as dynamic columns showing completed-chore counts; the `['dashboard', houseId]` React Query cache is invalidated whenever `useCompleteAssignment` succeeds).
-- **Hooks:** `src/hooks/useInvitations.js` — `useInvitations()` (React Query, 30s poll), `useInviteUser(houseId)`, `useRespondInvitation()` (invalidates invitations cache on success). `src/hooks/useNotifications.js` — `useNotifications()` (30s poll), `useMarkNotificationRead()` (invalidates notifications cache). `src/hooks/useAccount.js` — `useChangePassword()`, `useChangeUsername()` (both are simple `useMutation` wrappers over the `/auth/change-*` endpoints). `src/hooks/useDashboard.js` — `useDashboardStats()` (React Query, query key `['dashboard', houseId]`, calls `GET /houses/:houseId/dashboard`).
+- **Auth context** `context/AuthContext.jsx` — holds `user`, `accessToken`, `activeHouseId`, `isLoading` in memory. Exposes `updateUser(updates)` for partial merges (used after username change). On mount, silently refreshes via httpOnly cookie; uses `isMounted` ref to guard unmount.
+- **API client** `api/client.js` — prefixes all requests with `/api`. On 401, refreshes the access token (deduped via `_refreshPromise`) then retries the original request. Skips refresh for `/auth/*` routes.
+- **Hooks** `hooks/` — React Query hooks split by domain: `useChores.js` (assignments only), `useChoreTypes.js`, `useMembers.js`, `useHouse.js`, `useAuth.js`, `useInvitations.js`, `useNotifications.js`, `useAccount.js`, `useDashboard.js`. `useHouseId()` returns `activeHouseId` from context.
+- **Pages** `pages/` — `Login`, `Register`, `HouseSelector` (post-login landing; create/join house), `Home` (main dashboard). `HouseSetup.jsx` exists but is unrouted — `HouseSelector` replaced it.
 
-### Auth flow
-1. Register/login → backend issues a short-lived JWT (15m) in the response body and a long-lived refresh token (7d) in an httpOnly cookie.
-2. Frontend stores the JWT in memory (AuthContext); all API requests attach it as `Bearer` token.
-3. On 401, the API client calls `POST /auth/refresh` (cookie sent automatically) to get a new JWT, then retries the original request.
-4. On app load, AuthContext silently refreshes to restore session without requiring re-login.
+### Auth Flow
+1. Register/login → short-lived JWT (15 m) in response body + long-lived refresh token (7 d) in httpOnly cookie.
+2. Frontend stores JWT in memory (AuthContext); all requests send it as `Bearer`.
+3. On 401, API client calls `POST /auth/refresh` (cookie auto-sent) → new JWT → retry.
+4. On app load, AuthContext silently refreshes to restore session.
 
-### Key design decisions
-- **Multi-tenant by design:** Every API route and DB query scopes data by `house_id`. Don't add global state that bypasses house scoping.
-- **sql.js write pattern:** After any insert/update/delete, call `saveDb()` to persist changes to disk. Forgetting this will silently discard writes on process exit. `PRAGMA foreign_keys = ON` is set on every DB init (`client.js`), so `onDelete: 'cascade'` in the schema actually fires — deleting a house cascades to chore_types, household_members, and chore_assignments automatically.
-- **Drizzle migrations:** Schema changes require running `npm run db:generate` (inside `backend/`) to produce a new `.sql` file in `backend/drizzle/`, then `npm run db:migrate` to apply it. Never edit generated `.sql` files directly.
-- **API prefix & Vite proxy:** The frontend API client (`src/api/client.js`) uses `BASE = '/api'` for all requests. Express mounts every route under `/api/...`, so the same paths work in both dev and production. In development, `frontend/vite.config.js` proxies `/api/*` → `http://localhost:3001/api/*` (no path rewriting — the `/api` prefix is passed through as-is). In production, the frontend is served by the same Express process so requests go directly to the backend with no proxy.
-- **House invite codes:** Each house gets a unique 6-digit zero-padded numeric code (e.g. `007342`) stored in `houses.invite_code` with a `UNIQUE INDEX`. `POST /houses` calls `generateUniqueInviteCode(db)` which pre-checks for collisions and retries up to 10 times. `POST /houses/join` validates the format with `/^\d{6}$/` before querying. Creating a house auto-adds the creator as a member with `role: 'owner'`; joining via code or accepting an invitation sets `role: 'member'`.
-- **House roles:** `household_members.role` is `'owner'|'member'`. `requireHouseOwner` (must run after `requireHouseMember`) gates destructive operations: deleting a house and deleting chore types. Regular members can read and create but cannot delete chore types. Future roles (e.g. `moderator`) can be added by extending this column and creating a corresponding middleware.
-- **User invitation flow:** `POST /houses/:houseId/invitations` looks up invitee by email, inserts a `house_invitations` row with `status: 'pending'`. `GET /invitations` returns pending invites for the authenticated user (enriched with `houseName` + `inviterName`). `POST /invitations/:id/respond` accepts `{action: 'accept'|'decline'}` — on accept, creates a `household_members` row (guarded against duplicates).
-- **Member `displayName`:** Set from the user's `users.display_name` at join/create time. Falls back to `email` if the user record is not found.
-- **Nullable `user_id` on members:** Allows legacy/guest household members from Phase 1 to coexist with authenticated users. The reminder service skips members where `user_id` is null — they receive no email or in-app notifications.
-- **Recurring assignments:** `chore_assignments` has two nullable columns — `recurrence_type` (`'interval'|'weekday'`) and `recurrence_value` (N days or 0–6 weekday index). When `markComplete` is called on a recurring assignment, `assignmentService.nextRecurringDueDate()` computes the next due date and a new assignment is spawned automatically. All date arithmetic in that function uses `getUTCDate`/`setUTCDate`/`getUTCDay` to avoid local-timezone off-by-one errors with ISO date strings.
-- **Daily reminders:** A `node-cron` job (`"0 8 * * *"`, 8 AM UTC) in `index.js` calls `reminderService.sendDailyReminders()`. It finds uncompleted assignments where `due_date <= now` and `last_reminder_sent_at` is null or before today (UTC). Email sending and in-app notification creation are intentionally decoupled: `sendDigestEmail` is wrapped in its own try/catch so an SMTP failure never blocks in-app notifications or `last_reminder_sent_at` stamping. `emailService.js` forces `family: 4` (IPv4) on the nodemailer transporter — Railway containers have no IPv6 outbound connectivity. The cron job is skipped when `NODE_ENV=test`. SMTP env vars: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`.
-- **Date display:** All due dates are stored as UTC midnight timestamps. Always use `toISOString().slice(0, 10)` (not `toLocaleDateString()`) when displaying dates — `toLocaleDateString()` shifts the date by the user's UTC offset and will show the wrong day for users in negative-offset timezones.
+## Key Design Decisions
+
+- **sql.js write pattern** — After any insert/update/delete, call `saveDb()`. Forgetting this silently discards writes on process exit. The in-memory model means concurrent processes (e.g., the reminder script and the running server) have separate DB states.
+- **Multi-tenant scoping** — Every API route and DB query filters by `house_id`. Never add global state that bypasses house scoping.
+- **Drizzle migrations** — Schema changes: run `npm run db:generate` (inside `backend/`) → new `.sql` in `backend/drizzle/` → `npm run db:migrate`. Never edit generated `.sql` files directly.
+- **API prefix consistency** — Frontend uses `BASE = '/api'` for all requests. Express mounts everything under `/api`. Vite dev proxy passes `/api/*` through without rewriting. This makes dev and production paths identical.
+- **House invite codes** — 6-digit zero-padded numeric (e.g. `007342`). `POST /houses` calls `generateUniqueInviteCode()` with collision-retry. `POST /houses/join` validates `/^\d{6}$/` before querying. Creating a house makes the creator `role: 'owner'`; joining sets `role: 'member'`.
+- **House roles** — `household_members.role` is `'owner'|'member'`. `requireHouseOwner` (must follow `requireHouseMember`) gates destructive ops: deleting a house, deleting chore types.
+- **`changeUsername` sync** — Updates both `users.display_name` and every `household_members.display_name` row for that user to keep display names consistent across all house memberships.
+- **Recurring assignments** — `chore_assignments` has `recurrence_type` (`'interval'|'weekday'`) and `recurrence_value`. When `markComplete` fires on a recurring assignment, `assignmentService.nextRecurringDueDate()` computes the next date and spawns a new assignment. All date arithmetic uses `getUTCDate`/`setUTCDate`/`getUTCDay` to avoid local-timezone off-by-one errors with ISO strings.
+- **Daily reminders** — `node-cron` job in `index.js`. Finds uncompleted assignments where `due_date <= now` and `last_reminder_sent_at` is null or before today UTC. Email send is wrapped in its own try/catch — SMTP failure never blocks in-app notifications or the `last_reminder_sent_at` stamp.
+- **Date display** — All due dates are UTC midnight timestamps. Always use `toISOString().slice(0, 10)`, never `toLocaleDateString()` — the latter shifts the date by the user's UTC offset.
+- **Nullable `user_id` on members** — Allows legacy/guest members to coexist with authenticated users. The reminder service skips members where `user_id` is null.
+- **React Query cache invalidation** — The `['dashboard', houseId]` cache is invalidated when `useCompleteAssignment` succeeds. Invitation and notification caches are invalidated on respond/mark-read.
 
 ## Deployment
 
-The app is deployed on **Railway** as a single Docker container serving both the API and the React frontend.
+Single Docker container on **Railway** serving both API and React frontend.
 
-### How the production build works
-The `Dockerfile` at the repo root is a two-stage build:
-1. Builds the React frontend (`frontend/`) → `frontend/dist/`
-2. Installs backend production deps, copies `backend/src/` and `backend/drizzle/`, then copies the frontend build into `./public/`
-
-Express serves the frontend statically from `./public` and falls back to `index.html` for all non-API routes. No separate static host or CDN is needed.
-
-### Railway-specific notes
-- The `VOLUME` instruction is banned by Railway — volumes are configured in the Railway dashboard (Storage tab), not in the Dockerfile. Mount path: `/data`.
-- `DATABASE_URL=file:/data/production.sqlite` — points to the mounted volume so the SQLite file survives redeploys.
-- Railway does not support IPv6 outbound connections. The nodemailer transporter uses `family: 4` to force IPv4 when connecting to SMTP servers.
-- The cron job runs inside the server process — no Railway cron configuration needed.
-
-### Required production environment variables
-`NODE_ENV`, `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `REFRESH_TOKEN_EXPIRES_IN`, `CORS_ORIGIN`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`. See `backend/.env.example` for descriptions.
+- **Dockerfile** — two-stage build: (1) Vite build → `frontend/dist/`, (2) backend production deps + copy frontend dist into `./public/`. Express serves it statically with an SPA catch-all.
+- **`VOLUME` is banned by Railway** — volumes are configured in the Railway dashboard (Storage tab). Mount path: `/data`.
+- **`DATABASE_URL=file:/data/production.sqlite`** — points to the mounted volume so the DB survives redeploys.
+- **Cron runs inside the server process** — no Railway cron configuration needed.
+- **IPv4 forced on SMTP** — Railway has no IPv6 outbound; nodemailer transporter uses `family: 4`.
+- **Required production env vars** — `NODE_ENV`, `PORT`, `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `REFRESH_TOKEN_EXPIRES_IN`, `CORS_ORIGIN`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`.

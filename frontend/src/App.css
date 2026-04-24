@@ -109,12 +109,18 @@ body {
   color: var(--danger);
 }
 
-.member-list__form,
-.add-assignment__form {
+.member-list__form {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: flex-end;
+}
+
+.add-assignment__form {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  align-items: end;
 }
 
 .member-list__input {
@@ -397,6 +403,27 @@ body {
   cursor: not-allowed;
 }
 
+.notification-bell__house-link {
+  display: inline;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--accent);
+  font-size: inherit;
+  font-weight: 600;
+  line-height: inherit;
+  vertical-align: baseline;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.notification-bell__house-link:hover {
+  opacity: 0.75;
+  text-decoration: none;
+}
+
 button {
   padding: 0.5rem 1rem;
   background: var(--accent);
@@ -576,23 +603,27 @@ button:disabled {
   filter: none;
 }
 
-.add-assignment__form label {
-  display: block;
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
+.add-assignment__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
   color: var(--muted);
 }
 
-.add-assignment__form select {
+.add-assignment__form select,
+.add-assignment__date,
+.add-assignment__recurrence-select {
   display: block;
   width: 100%;
-  margin-top: 0.25rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.45rem 0.65rem;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
   font-size: 0.9rem;
+  box-sizing: border-box;
+  height: 2.25rem;
 }
 
 .add-assignment__chore-row {
@@ -643,44 +674,39 @@ button:disabled {
 }
 
 .add-assignment__error {
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--danger);
   font-size: 0.875rem;
-  width: 100%;
-}
-
-.add-assignment__date {
-  display: block;
-  width: 100%;
-  margin-top: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 0.9rem;
-}
-
-.add-assignment__recurrence-select {
-  display: block;
-  width: 100%;
-  margin-top: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 0.9rem;
 }
 
 .add-assignment__rotation {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 .add-assignment__rotation input {
   margin: 0;
+}
+
+.add-assignment__footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.add-assignment__footer .add-assignment__label {
+  flex: 0 0 auto;
+  min-width: 150px;
+}
+
+.add-assignment__footer > button {
+  flex: 1;
 }
 
 /* Chore list header with filter toggle */
