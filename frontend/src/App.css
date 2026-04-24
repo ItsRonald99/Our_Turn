@@ -603,6 +603,69 @@ button:disabled {
   filter: none;
 }
 
+/* ─── Complete confirmation strip ───────────────────────── */
+
+.chore-card__complete-confirm {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  row-gap: 0.65rem;
+  column-gap: 0.5rem;
+  padding: 0.75rem;
+  margin: 0.5rem 0 0;
+  background: rgba(88, 166, 255, 0.07);
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  border-radius: 6px;
+}
+
+.chore-card__complete-confirm > span {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.chore-card__complete-confirm-btn {
+  grid-row: 2;
+  grid-column: 1;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.75rem;
+  background: var(--success);
+  border: none;
+  color: #fff;
+  border-radius: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chore-card__complete-confirm-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.chore-card__complete-cancel-btn {
+  grid-row: 2;
+  grid-column: 2;
+  font-size: 0.78rem;
+  padding: 0.3rem 0.75rem;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.chore-card__complete-cancel-btn:hover:not(:disabled) {
+  border-color: var(--text);
+  color: var(--text);
+  filter: none;
+}
+
+/* hide "Mark done" while the confirmation strip is open */
+.chore-card[data-confirming="true"] .chore-card__complete {
+  display: none;
+}
+
 .add-assignment__label {
   display: flex;
   flex-direction: column;

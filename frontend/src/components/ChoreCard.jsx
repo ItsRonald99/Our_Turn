@@ -69,7 +69,7 @@ export function ChoreCard({ houseId, assignment, choreTypeName, memberName, memb
   };
 
   return (
-    <div className="chore-card" data-completed={isCompleted} data-editing={isEditing}>
+    <div className="chore-card" data-completed={isCompleted} data-editing={isEditing} data-confirming={showCompleteConfirm}>
       <div className="chore-card__header">
         <span className="chore-card__type">{choreTypeName}</span>
         {!isEditing && (

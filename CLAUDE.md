@@ -47,10 +47,10 @@ Monorepo: `backend/` is Node/Express, `frontend/` is Vite/React. In production b
 
 - **Entry** `index.js` — mounts all routers under `/api`, initializes the DB before listening, schedules the daily reminder cron (`0 8 * * *` UTC, skipped in test env). Binds `0.0.0.0` for Docker/Railway. Serves the frontend static build in production.
 - **DB client** `db/client.js` — uses **sql.js** (pure JS SQLite, no native build). The entire DB is loaded from disk into memory at startup; `saveDb()` must be called after every write to flush back to disk (`backend/dev.sqlite`). Migrations run automatically from SQL files in `backend/drizzle/` on startup.
-- **Schema** `db/schema.js` — eight tables: `users`, `refresh_tokens`, `houses`, `chore_types`, `household_members`, `chore_assignments`, `notifications`, `house_invitations`. All chore data is scoped by `house_id`. `PRAGMA foreign_keys = ON` is set on every init so `onDelete: 'cascade'` actually fires.
+- **Schema** `db/schema.js` — nine tables: `users`, `refresh_tokens`, `houses`, `chore_types`, `household_members`, `chore_assignments`, `notifications`, `house_invitations`, `manual_tally_adjustments`. All chore data is scoped by `house_id`. `PRAGMA foreign_keys = ON` is set on every init so `onDelete: 'cascade'` actually fires.
 - **Routes** `routes/` — all mounted under `/api`. Route handlers delegate to services rather than querying the DB directly. The `/health` endpoint has no `/api` prefix (Railway health check).
 - **Middleware** `middleware/requireAuth.js` → `requireHouseMember.js` → `requireHouseOwner.js` — must run in this order. `rateLimiter.js` auto-skips in `NODE_ENV=test`.
-- **Services** `services/` — `assignmentService.js` (rotation logic), `authService.js` (JWT/bcrypt, `changePassword`, `changeUsername`), `choreTypeService.js`, `notificationService.js`, `emailService.js` (nodemailer, console fallback when SMTP unconfigured, forces `family: 4` for Railway IPv4), `reminderService.js` (queries due assignments, sends digest + in-app notifications, stamps `last_reminder_sent_at`), `dashboardService.js`.
+- **Services** `services/` — `assignmentService.js` (rotation logic), `authService.js` (JWT/bcrypt, `changePassword`, `changeUsername`), `choreTypeService.js`, `notificationService.js`, `emailService.js` (nodemailer, console fallback when SMTP unconfigured, forces `family: 4` for Railway IPv4), `reminderService.js` (queries due assignments, sends digest + in-app notifications, stamps `last_reminder_sent_at`), `dashboardService.js` (aggregates auto-completions + manual adjustment deltas, clamps counts to ≥ 0), `tallyService.js` (owner-only +1/−1 tally adjustments; `removeManualTally` enforces a server-side floor of 0 by querying the current total before inserting).
 - **Test helpers** `test/helpers.js` — exports `makeChain(resolveValue)` and `createMockDb()` for mocking Drizzle in route tests.
 
 ### Frontend (`frontend/src/`)
@@ -70,7 +70,7 @@ Monorepo: `backend/` is Node/Express, `frontend/` is Vite/React. In production b
 
 - **sql.js write pattern** — After any insert/update/delete, call `saveDb()`. Forgetting this silently discards writes on process exit. The in-memory model means concurrent processes (e.g., the reminder script and the running server) have separate DB states.
 - **Multi-tenant scoping** — Every API route and DB query filters by `house_id`. Never add global state that bypasses house scoping.
-- **Drizzle migrations** — Schema changes: run `npm run db:generate` (inside `backend/`) → new `.sql` in `backend/drizzle/` → `npm run db:migrate`. Never edit generated `.sql` files directly.
+- **Drizzle migrations** — The migration runner in `db/client.js` reads `.sql` files from `backend/drizzle/` alphabetically by filename and tracks applied files by name in `__drizzle_migrations`. It does **not** use a Drizzle Kit journal, so manually written `.sql` files are picked up automatically. For schema changes, run `npm run db:generate` inside `backend/` to produce a new file, then `npm run db:migrate`. You can also write migration files by hand (e.g. for constraints SQLite can't add via `ALTER TABLE`) — just name them in order.
 - **API prefix consistency** — Frontend uses `BASE = '/api'` for all requests. Express mounts everything under `/api`. Vite dev proxy passes `/api/*` through without rewriting. This makes dev and production paths identical.
 - **House invite codes** — 6-digit zero-padded numeric (e.g. `007342`). `POST /houses` calls `generateUniqueInviteCode()` with collision-retry. `POST /houses/join` validates `/^\d{6}$/` before querying. Creating a house makes the creator `role: 'owner'`; joining sets `role: 'member'`.
 - **House roles** — `household_members.role` is `'owner'|'member'`. `requireHouseOwner` (must follow `requireHouseMember`) gates destructive ops: deleting a house, deleting chore types.
@@ -79,7 +79,12 @@ Monorepo: `backend/` is Node/Express, `frontend/` is Vite/React. In production b
 - **Daily reminders** — `node-cron` job in `index.js`. Finds uncompleted assignments where `due_date <= now` and `last_reminder_sent_at` is null or before today UTC. Email send is wrapped in its own try/catch — SMTP failure never blocks in-app notifications or the `last_reminder_sent_at` stamp.
 - **Date display** — All due dates are UTC midnight timestamps. Always use `toISOString().slice(0, 10)`, never `toLocaleDateString()` — the latter shifts the date by the user's UTC offset.
 - **Nullable `user_id` on members** — Allows legacy/guest members to coexist with authenticated users. The reminder service skips members where `user_id` is null.
-- **React Query cache invalidation** — The `['dashboard', houseId]` cache is invalidated when `useCompleteAssignment` succeeds. Invitation and notification caches are invalidated on respond/mark-read.
+- **React Query cache invalidation** — The `['dashboard', houseId]` cache is invalidated when `useCompleteAssignment` or `useAdjustTally` succeeds. Invitation and notification caches are invalidated on respond/mark-read.
+- **Dashboard tally adjustments** — Manual owner adjustments are stored as individual delta rows (`+1` or `−1`) in `manual_tally_adjustments`, never as a running total. `dashboardService` sums them alongside auto-completions at read time. The `delta` column has a `CHECK(delta IN (1, -1))` constraint. `requireHouseOwner` middleware gates both tally routes.
+
+## Reference Docs
+
+`docs/` contains background design documents: `api.md` (route catalogue), `data-model.md` (entity relationships), `phase-2-auth.md` (auth design rationale). These are useful for understanding *why* decisions were made but may lag the current implementation — treat the source code and this file as authoritative.
 
 ## Deployment
 
