@@ -72,3 +72,12 @@ export const houseInvitations = sqliteTable('house_invitations', {
   status: text('status').notNull().default('pending'), // 'pending' | 'accepted' | 'declined'
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
+
+export const manualTallyAdjustments = sqliteTable('manual_tally_adjustments', {
+  id: text('id').primaryKey(),
+  houseId: text('house_id').notNull().references(() => houses.id, { onDelete: 'cascade' }),
+  memberId: text('member_id').notNull().references(() => householdMembers.id, { onDelete: 'cascade' }),
+  choreTypeId: text('chore_type_id').notNull().references(() => choreTypes.id, { onDelete: 'cascade' }),
+  delta: integer('delta').notNull(), // +1 or -1
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});

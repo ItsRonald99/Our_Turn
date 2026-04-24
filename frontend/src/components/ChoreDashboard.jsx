@@ -1,7 +1,10 @@
-import { useDashboardStats } from '../hooks/useDashboard';
+import { useDashboardStats, useAdjustTally } from '../hooks/useDashboard';
+import { useHouseId } from '../hooks/useHouse';
 
-export function ChoreDashboard() {
+export function ChoreDashboard({ isOwner = false }) {
+  const houseId = useHouseId();
   const { data, isLoading } = useDashboardStats();
+  const adjustTally = useAdjustTally(houseId);
 
   if (isLoading) {
     return <p className="dashboard__loading">Loading dashboard…</p>;
@@ -35,11 +38,42 @@ export function ChoreDashboard() {
             {data.members.map((m) => (
               <tr key={m.memberId}>
                 <td className="dashboard__cell dashboard__cell--name">{m.displayName}</td>
-                {data.choreTypes.map((ct) => (
-                  <td key={ct.id} className="dashboard__cell dashboard__cell--count">
-                    {m.chores[ct.id] ?? 0}
-                  </td>
-                ))}
+                {data.choreTypes.map((ct) => {
+                  const count = m.chores[ct.id] ?? 0;
+                  return (
+                    <td key={ct.id} className="dashboard__cell dashboard__cell--count">
+                      {isOwner ? (
+                        <div className="dashboard__tally-cell">
+                          <button
+                            type="button"
+                            className="dashboard__tally-btn"
+                            onClick={() =>
+                              adjustTally.mutate({ action: 'remove', memberId: m.memberId, choreTypeId: ct.id })
+                            }
+                            disabled={adjustTally.isLoading || count <= 0}
+                            aria-label={`Remove ${ct.name} tally for ${m.displayName}`}
+                          >
+                            −
+                          </button>
+                          <span>{count}</span>
+                          <button
+                            type="button"
+                            className="dashboard__tally-btn"
+                            onClick={() =>
+                              adjustTally.mutate({ action: 'add', memberId: m.memberId, choreTypeId: ct.id })
+                            }
+                            disabled={adjustTally.isLoading}
+                            aria-label={`Add ${ct.name} tally for ${m.displayName}`}
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        count
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

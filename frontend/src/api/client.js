@@ -107,6 +107,10 @@ export const api = {
 
   // Dashboard
   getDashboardStats: (houseId) => request(`/houses/${houseId}/dashboard`),
+  addTally: (houseId, body) =>
+    request(`/houses/${houseId}/dashboard/tally/add`, { method: 'POST', body: JSON.stringify(body) }),
+  removeTally: (houseId, body) =>
+    request(`/houses/${houseId}/dashboard/tally/remove`, { method: 'POST', body: JSON.stringify(body) }),
 
   // Dev only
   triggerReminders: (force = false) =>

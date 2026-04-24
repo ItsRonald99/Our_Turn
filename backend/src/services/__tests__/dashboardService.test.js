@@ -43,7 +43,8 @@ describe('getChoreCompletionStats', () => {
     mockDb.select
       .mockReturnValueOnce(makeChain(members))
       .mockReturnValueOnce(makeChain(types))
-      .mockReturnValueOnce(makeChain(completed));
+      .mockReturnValueOnce(makeChain(completed))
+      .mockReturnValueOnce(makeChain([])); // no manual adjustments
 
     const result = await getChoreCompletionStats(HOUSE_ID);
 
@@ -56,11 +57,46 @@ describe('getChoreCompletionStats', () => {
     expect(bob.chores['ct-2']).toBeUndefined();
   });
 
+  it('adds manual adjustment deltas to auto-completion counts', async () => {
+    const completed = [makeAssignment('m-1', 'ct-1')];
+    const adjustments = [
+      { memberId: 'm-1', choreTypeId: 'ct-1', delta: 1 },  // +1 on top of 1 auto = 2
+      { memberId: 'm-2', choreTypeId: 'ct-2', delta: -1 }, // manual-only, net -1
+    ];
+    mockDb.select
+      .mockReturnValueOnce(makeChain(members))
+      .mockReturnValueOnce(makeChain(types))
+      .mockReturnValueOnce(makeChain(completed))
+      .mockReturnValueOnce(makeChain(adjustments));
+
+    const result = await getChoreCompletionStats(HOUSE_ID);
+
+    const alice = result.members.find((m) => m.memberId === 'm-1');
+    expect(alice.chores['ct-1']).toBe(2); // 1 auto + 1 manual
+    const bob = result.members.find((m) => m.memberId === 'm-2');
+    expect(bob.chores['ct-2']).toBe(0); // 0 auto + (-1) manual, clamped to 0
+  });
+
+  it('clamps negative adjusted counts to 0 in output', async () => {
+    const adjustments = [{ memberId: 'm-1', choreTypeId: 'ct-1', delta: -1 }];
+    mockDb.select
+      .mockReturnValueOnce(makeChain(members))
+      .mockReturnValueOnce(makeChain(types))
+      .mockReturnValueOnce(makeChain([]))       // no completions
+      .mockReturnValueOnce(makeChain(adjustments));
+
+    const result = await getChoreCompletionStats(HOUSE_ID);
+
+    const alice = result.members.find((m) => m.memberId === 'm-1');
+    expect(alice.chores['ct-1']).toBe(0);
+  });
+
   it('handles multiple chore types with zero completions gracefully', async () => {
     mockDb.select
       .mockReturnValueOnce(makeChain(members))
       .mockReturnValueOnce(makeChain(types))
-      .mockReturnValueOnce(makeChain([])); // no completions
+      .mockReturnValueOnce(makeChain([])) // no completions
+      .mockReturnValueOnce(makeChain([])); // no adjustments
 
     const result = await getChoreCompletionStats(HOUSE_ID);
 
@@ -71,34 +107,30 @@ describe('getChoreCompletionStats', () => {
   });
 
   it('only counts completed assignments (completedAt is set)', async () => {
-    // The service filters at the DB level via isNotNull(completedAt).
-    // Simulate the DB correctly returning only completed rows.
     const completed = [makeAssignment('m-1', 'ct-1')];
     mockDb.select
       .mockReturnValueOnce(makeChain(members))
       .mockReturnValueOnce(makeChain(types))
-      .mockReturnValueOnce(makeChain(completed));
+      .mockReturnValueOnce(makeChain(completed))
+      .mockReturnValueOnce(makeChain([]));
 
     const result = await getChoreCompletionStats(HOUSE_ID);
 
     const alice = result.members.find((m) => m.memberId === 'm-1');
     expect(alice.chores['ct-1']).toBe(1);
-    // Verify the assignments query used isNotNull — check that 3 select calls were made
-    // (members, choreTypes, assignments) proving the service queries the DB separately
-    expect(mockDb.select).toHaveBeenCalledTimes(3);
+    expect(mockDb.select).toHaveBeenCalledTimes(4);
   });
 
   it('scopes data to the given houseId', async () => {
     mockDb.select
       .mockReturnValueOnce(makeChain(members))
       .mockReturnValueOnce(makeChain(types))
+      .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]));
 
     await getChoreCompletionStats(HOUSE_ID);
 
-    // Each select chain has .where() called — confirm all three queries ran
-    expect(mockDb.select).toHaveBeenCalledTimes(3);
-    // The where clauses use houseId — spot-check via the chain's where spy on first call
+    expect(mockDb.select).toHaveBeenCalledTimes(4);
     const firstChain = mockDb.select.mock.results[0].value;
     expect(firstChain.where).toHaveBeenCalled();
   });
@@ -107,6 +139,7 @@ describe('getChoreCompletionStats', () => {
     mockDb.select
       .mockReturnValueOnce(makeChain(members))
       .mockReturnValueOnce(makeChain(types))
+      .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]));
 
     const result = await getChoreCompletionStats(HOUSE_ID);
@@ -119,6 +152,7 @@ describe('getChoreCompletionStats', () => {
 
   it('returns empty result when house has no members or types', async () => {
     mockDb.select
+      .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]))
       .mockReturnValueOnce(makeChain([]));

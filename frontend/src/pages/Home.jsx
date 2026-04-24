@@ -58,6 +58,7 @@ export function Home() {
   }
 
   const activeHouse = houses.find((h) => h.id === houseId);
+  const isOwner = members.some((m) => m.userId === user?.id && m.role === 'owner');
 
   return (
     <main className="page-home">
@@ -133,7 +134,7 @@ export function Home() {
             <p>Loading…</p>
           ) : (
             <>
-              <ChoreDashboard />
+              <ChoreDashboard isOwner={isOwner} />
               <ChoreList
                 houseId={houseId}
                 assignments={assignments}

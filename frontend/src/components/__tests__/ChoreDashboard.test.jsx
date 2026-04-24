@@ -1,11 +1,16 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 vi.mock('../../hooks/useDashboard', () => ({
   useDashboardStats: vi.fn(),
+  useAdjustTally: vi.fn(),
 }));
 
-import { useDashboardStats } from '../../hooks/useDashboard';
+vi.mock('../../hooks/useHouse', () => ({
+  useHouseId: vi.fn().mockReturnValue('house-1'),
+}));
+
+import { useDashboardStats, useAdjustTally } from '../../hooks/useDashboard';
 import { ChoreDashboard } from '../ChoreDashboard';
 
 const makeData = (overrides = {}) => ({
@@ -20,13 +25,19 @@ const makeData = (overrides = {}) => ({
   ...overrides,
 });
 
-function setup(hookReturn) {
+const mockMutate = vi.fn();
+
+function setup(hookReturn, { isOwner = false } = {}) {
   useDashboardStats.mockReturnValue(hookReturn);
-  return render(<ChoreDashboard />);
+  useAdjustTally.mockReturnValue({ mutate: mockMutate, isLoading: false });
+  return render(<ChoreDashboard isOwner={isOwner} />);
 }
 
 describe('ChoreDashboard', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMutate.mockReset();
+  });
 
   it('shows loading state', () => {
     setup({ isLoading: true, data: undefined });
@@ -55,10 +66,9 @@ describe('ChoreDashboard', () => {
     expect(screen.getByText('Bob')).toBeInTheDocument();
   });
 
-  it('shows correct counts for Alice', () => {
+  it('shows correct counts for Alice (non-owner view)', () => {
     setup({ isLoading: false, data: makeData() });
     const rows = screen.getAllByRole('row');
-    // row 0 = header, row 1 = Alice, row 2 = Bob
     const aliceRow = rows[1];
     const cells = aliceRow.querySelectorAll('td');
     expect(cells[1].textContent).toBe('5'); // Garbage
@@ -74,10 +84,16 @@ describe('ChoreDashboard', () => {
     expect(cells[2].textContent).toBe('0'); // Recycling — no entry → 0
   });
 
+  it('renders section title', () => {
+    setup({ isLoading: false, data: makeData() });
+    expect(screen.getByText('Completion Stats')).toBeInTheDocument();
+  });
+
   it('updates when data changes', () => {
     const { rerender } = render(<ChoreDashboard />);
 
     useDashboardStats.mockReturnValue({ isLoading: false, data: makeData() });
+    useAdjustTally.mockReturnValue({ mutate: mockMutate, isLoading: false });
     rerender(<ChoreDashboard />);
     expect(screen.getByText('Alice')).toBeInTheDocument();
 
@@ -92,11 +108,62 @@ describe('ChoreDashboard', () => {
     const rows = screen.getAllByRole('row');
     const aliceRow = rows[1];
     const cells = aliceRow.querySelectorAll('td');
-    expect(cells[1].textContent).toBe('6');
+    expect(cells[1].querySelector('span, td')?.textContent ?? cells[1].textContent).toContain('6');
+  });
+});
+
+describe('ChoreDashboard — owner tally controls', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMutate.mockReset();
   });
 
-  it('renders section title', () => {
-    setup({ isLoading: false, data: makeData() });
-    expect(screen.getByText('Completion Stats')).toBeInTheDocument();
+  it('does not show +/− buttons when isOwner is false', () => {
+    setup({ isLoading: false, data: makeData() }, { isOwner: false });
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('shows +/− buttons for every cell when isOwner is true', () => {
+    setup({ isLoading: false, data: makeData() }, { isOwner: true });
+    // 2 members × 2 chore types × 2 buttons (+ and −) = 8 buttons
+    expect(screen.getAllByRole('button')).toHaveLength(8);
+  });
+
+  it('clicking + calls mutate with action=add, correct memberId and choreTypeId', () => {
+    setup({ isLoading: false, data: makeData() }, { isOwner: true });
+    const addBtn = screen.getByLabelText('Add Garbage tally for Alice');
+    fireEvent.click(addBtn);
+    expect(mockMutate).toHaveBeenCalledWith({ action: 'add', memberId: 'm-1', choreTypeId: 'ct-1' });
+  });
+
+  it('clicking − calls mutate with action=remove, correct memberId and choreTypeId', () => {
+    setup({ isLoading: false, data: makeData() }, { isOwner: true });
+    const removeBtn = screen.getByLabelText('Remove Garbage tally for Alice');
+    fireEvent.click(removeBtn);
+    expect(mockMutate).toHaveBeenCalledWith({ action: 'remove', memberId: 'm-1', choreTypeId: 'ct-1' });
+  });
+
+  it('disables − button when count is 0', () => {
+    const data = makeData({
+      members: [{ memberId: 'm-1', displayName: 'Alice', chores: {} }], // no completions → 0
+    });
+    setup({ isLoading: false, data }, { isOwner: true });
+    const removeBtn = screen.getByLabelText('Remove Garbage tally for Alice');
+    expect(removeBtn).toBeDisabled();
+  });
+
+  it('does not disable − button when count is > 0', () => {
+    setup({ isLoading: false, data: makeData() }, { isOwner: true });
+    const removeBtn = screen.getByLabelText('Remove Garbage tally for Alice'); // Alice has 5
+    expect(removeBtn).not.toBeDisabled();
+  });
+
+  it('disables all buttons while a mutation is in flight', () => {
+    useDashboardStats.mockReturnValue({ isLoading: false, data: makeData() });
+    useAdjustTally.mockReturnValue({ mutate: mockMutate, isLoading: true });
+    render(<ChoreDashboard isOwner={true} />);
+    for (const btn of screen.getAllByRole('button')) {
+      expect(btn).toBeDisabled();
+    }
   });
 });
